@@ -1,86 +1,141 @@
+#install.packages(c(
+#  "shiny",
+#  "tidyverse",
+#  "DT",
+#  "genderBR",
+#  "dplyr",
+#  "ggplot2",
+#  "tidyr",
+#  "purrr",
+#  "wordcloud2",
+#  "scales",
+#  "shinyWidgets",
+#  "bslib"
+#))
+
+
+library(bslib)
 library(shiny)
 library(tidyverse)
 library(DT)
+library(genderBR)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+library(wordcloud2)
+library(scales)
+library(shinyWidgets)
 
+df_nomes <- readRDS("C:/Users/DamaLaptoper/Videos/Metodos/nomes_lista") |>
+  bind_rows() |>
+  as_tibble()
 
-lista_nomes <- bind_rows(lista_nomes) # Ele a lista de tabelas e coloca uma embaixo da outra
+sujo_nomes <- df_nomes |>
+  unnest_auto(res)
 
-sujo_nomes <- df_nomes |> 
-  unnest_auto(res) # na lista o res tinha uma lista dentro, o unest abriu o conteúdo detalhado (anos e frequências) que estava compactado dentro de cada nome
-
-limpo_nomes <- sujo_nomes |> 
+limpo_nomes <- sujo_nomes |>
   mutate(periodo_limpo = gsub("[^0-9,]", "", periodo)) |>
   separate(
-    periodo_limpo, 
-    into = c("ano_inicio", "ano_fim"), 
+    periodo_limpo,
+    into = c("ano_inicio", "ano_fim"),
     sep = ",",
-    convert = TRUE # Converte para numero 
+    convert = TRUE
   ) |>
   mutate(
-    Começo = ifelse(ano_inicio == 1930 & is.na(ano_fim), 1929, ano_inicio),  # tem que revisar a forma que eu to fazendo, mas ta funcionando
+    Começo = ifelse(ano_inicio == 1930 & is.na(ano_fim), 1929, ano_inicio),
     Fim = ifelse(is.na(ano_fim) & ano_inicio < 1940, 1930, ano_fim),
     
     Periodo = case_when(
-      Começo < 1930 ~ "Antes de 1930",             #faz as legendas do período 
+      Começo < 1930 ~ "Antes de 1930",
       TRUE ~ paste(Começo, "a", Fim)),
     
-    Periodo = fct_reorder(Periodo, Começo) # Transforma em fator ordenado pelo Começo
+    Periodo = fct_reorder(Periodo, Começo)
   ) |>
-  select(Nome = nome, 
-         Localidade = localidade, 
-         Frequência = frequencia, 
+  mutate(Sexo = get_gender(limpo_nomes$nome),
+         Sexo = if_else(Sexo == "Male", "Masculino", "Feminino")) |>
+  select(Nome = nome,
+         Sexo,
+         Localidade = localidade,
+         Frequência = frequencia,
          Periodo,
          Começo,
          Fim)
 
+periodos_ordenados <- levels(limpo_nomes$Periodo)
 
-ui <- fluidPage(
-  theme = NULL, 
+ui <- navbarPage(
+  theme = bs_theme(bootswatch = "minty"),
+  title = "Dashboard de Nomes (IBGE)",
+  nav_item(input_dark_mode(mode = "light")),
   
-  titlePanel("Dashboard de Nomes (IBGE)"),
-  
-  sidebarLayout(
-    sidebarPanel(
-      h4("Filtros"),
-      selectInput("nome_selecionado", 
-                  "Escolha um ou mais Nomes:", 
-                  choices = NULL,    
-                  selected = NULL,
-                  multiple = TRUE),  # Ativa seleção múltipla
-    ),
-    mainPanel(
-      tabsetPanel(
-        tabPanel("Gráfico", 
-                 plotOutput("grafico_evolucao")
-        ),
-        tabPanel("Tabela", 
-                 DTOutput("tabela_dados")
-        )
-      )
-    )
+  # Aba Principal com Sidebar
+  tabPanel("Análise Geral",
+           page_sidebar(
+             sidebar = sidebar(
+               h4("Filtros Principais"),
+               selectInput("nome_selecionado", 
+                           "Escolha um ou mais Nomes:", 
+                           choices = NULL,    
+                           selected = NULL,
+                           multiple = TRUE)
+             ),
+             
+             tabsetPanel(
+               tabPanel("Evolução (Linhas)", 
+                        br(), plotOutput("grafico_evolucao")),
+               
+               tabPanel("Tabela Detalhada", 
+                        br(), DTOutput("tabela_dados")),
+               
+               tabPanel("Distribuição (Boxplot)",
+                        br(), h5("Distribuição da frequência dos nomes selecionados"),
+                        plotOutput("boxplot_nomes")),
+               
+               tabPanel("Histograma (Tamanho)",
+                        br(),
+                        fluidRow(
+                          column(6, selectInput("periodo_hist", "Escolha o Período:", choices = periodos_ordenados)),
+                          column(6, checkboxInput("dividir_sexo", "Dividir por sexo", value = FALSE))
+                        ),
+                        plotOutput("histograma_comprimento")),
+               
+               tabPanel("Nuvem de Palavras",
+                        br(),
+                        fluidRow(
+                          column(8,
+                                 sliderTextInput(
+                                   inputId = "periodo_nuvem_slider", 
+                                   label = "Período de Referência:", 
+                                   choices = periodos_ordenados,
+                                   selected = periodos_ordenados[1],
+                                   animate = animationOptions(interval = 1000),
+                                   grid = TRUE
+                                 )
+                          ),
+                          column(4,
+                                 checkboxInput("usar_iniciais", "Agrupar por iniciais", value = FALSE)
+                          )
+                        ),
+                        wordcloud2Output("nuvem_nomes", height = "600px")
+               )
+             )
+           )
   )
 )
 
 server <- function(input, output, session) {
   
-  updateSelectInput(
-    inputId = "nome_selecionado", 
-    choices = sort(unique(limpo_nomes$Nome))
-  )
+  updateSelectInput(session, "nome_selecionado", choices = sort(unique(limpo_nomes$Nome)))
   
   dados_filtrados <- reactive({
     req(input$nome_selecionado)
-    
-    limpo_nomes |> 
-      filter(Nome %in% input$nome_selecionado) |>  
-      arrange(Começo)                        #ordena pelo ano inicial
+    limpo_nomes |> filter(Nome %in% input$nome_selecionado) |> arrange(Começo)
   })
   
+  # 1. Gráfico
   output$grafico_evolucao <- renderPlot({
     req(dados_filtrados())
-    
-    # Define paleta de cores para múltiplos nomes IA contribuition
-    cores <- scales::hue_pal()(length(input$nome_selecionado))
     
     ggplot(dados_filtrados(), aes(x = Periodo, y = Frequência, 
                                   color = Nome, group = Nome)) +
@@ -91,31 +146,34 @@ server <- function(input, output, session) {
                  show.legend = FALSE,
                  size = 3) +
       labs(
-        title = paste("Evolução do Número de Nascimentos"),
-        subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),  #isso aqui foi IA porque n tava sabendo como fazer
+        title = "Evolução do Número de Nascimentos",
+        subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),
         x = "Período",
         y = "Número de Nascimentos",
-        color = "Nome" # associando uma cor a cada nome IA contribution 
+        color = "Nome"
       ) +
       theme_bw() +
+      theme(
+        axis.title.x = element_text(margin = margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10), size = 14)
+      ) +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = "."),
-        expand = expansion(mult = c(0.05, 0.2))    # aumentar o plot pq tava cordando a label 
-      ) +
-      theme(
-        axis.title.x = element_text(margin = margin(t = 10), size = 14), # aumentando os espaço entre o titulo do eixo e o plot
-        axis.title.y = element_text(margin = margin(r = 10), size = 14),
+        expand = expansion(mult = c(0.05, 0.2))
       )
   })
-  # DT e um pacote para tabelas interativas
+  
+  # 2. Tabela
   output$tabela_dados <- renderDT({
-    
+    req(dados_filtrados())
     
     df <- dados_filtrados() 
     
     df_normalizado <- df |> 
-      mutate('Frequência Relativa' = (Frequência / sum(Frequência))) |> 
-      select(Nome, Localidade, Frequência, 'Frequência Relativa', -Começo, -Fim)
+      mutate(Total_Filtro = sum(Frequência)) |> 
+      mutate('Frequência Relativa' = (Frequência / Total_Filtro)) |> 
+      ungroup() |>
+      select(Nome, Localidade, Frequência, 'Frequência Relativa', Periodo)
     
     datatable(
       df_normalizado,
@@ -123,17 +181,86 @@ server <- function(input, output, session) {
       rownames = FALSE,
       options = list(
         pageLength = 10,
-        dom = 'Bfrtip',   # isso aqui e pata definir a ordem que os elementos UI da tabela vao aparecer, n sei exatamente o porque mas a IA recomendou
+        dom = 'Bfrtip',
         buttons = c('copy', 'csv', 'excel')
       ),
       extensions = 'Buttons'
     )|> 
-      # Formata a coluna de porcentagem
       formatPercentage('Frequência Relativa', digits = 1) |> 
       formatStyle(
         'Frequência',
-        background = styleColorBar(df$Frequência, 'lightblue') # Barras na frequência isso daqui tmb pedi ajuda da IA
+        background = styleColorBar(range(df_normalizado$Frequência), 'lightblue')
       )
+  })
+  
+  # 3. Boxplot
+  output$boxplot_nomes <- renderPlot({
+    req(dados_filtrados())
+    ggplot(dados_filtrados(), aes(x = Nome, y = Frequência, fill = Nome)) +
+      geom_boxplot(alpha = 0.7, show.legend = FALSE) + 
+      geom_jitter(width = 0.2, alpha = 0.5) +
+      labs(x = "Nome", y = "Frequência", title = "Variabilidade da Frequência") +
+      theme_bw() + 
+      theme(text = element_text(size = 14))
+  })
+  
+  # 4. Histograma
+  output$histograma_comprimento <- renderPlot({
+    req(input$periodo_hist)
+    df_periodo <- limpo_nomes %>% 
+      filter(Periodo == input$periodo_hist) %>% 
+      mutate(comprimento = nchar(Nome))
+    
+    p <- ggplot(df_periodo, aes(x = comprimento, weight = Frequência))
+    if (input$dividir_sexo) {
+      p <- ggplot(df_periodo, aes(x = comprimento, weight = Frequência, fill = Sexo)) +
+        geom_histogram(binwidth = 1, position = "dodge", color = "white", alpha = 0.8)
+    } else {
+      p <- p + geom_histogram(binwidth = 1, fill = "skyblue", color = "white", alpha = 0.8)
+    }
+    p + 
+      labs(
+        title = "Distribuição do Tamanho dos Nomes",
+        subtitle = paste("Período:", input$periodo_hist),
+        x = "Número de Letras",
+        y = "Total de Nascimentos"
+      ) +
+      theme_bw() +
+      theme(
+        axis.title.x = element_text(margin = margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = margin(r = 10), size = 14),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12)
+      ) +
+      scale_y_continuous(
+        labels = scales::comma_format(big.mark = "."),
+        expand = expansion(mult = c(0, 0.1))
+      ) +
+      scale_x_continuous(breaks = seq(0, max(df_periodo$comprimento), by = 1))
+  })
+  
+  
+  # 5. Nuvem de Palavras
+  output$nuvem_nomes <- renderWordcloud2({
+    req(input$periodo_nuvem_slider)
+    
+    df_periodo <- limpo_nomes %>%
+      filter(Periodo == input$periodo_nuvem_slider) %>% 
+      select(Nome, Frequência) %>%
+      filter(Frequência > 0)
+    
+    if (input$usar_iniciais) {
+      df_periodo <- df_periodo %>%
+        mutate(Nome = toupper(substr(Nome, 1, 1))) %>%
+        group_by(Nome) %>% 
+        summarise(Frequência = sum(Frequência), .groups = "drop")
+    }
+    
+    df_periodo <- df_periodo %>% 
+      arrange(desc(Frequência)) %>% 
+      head(200)
+    
+    wordcloud2(df_periodo, size = 1, color = "random-dark")
   })
 }
 
