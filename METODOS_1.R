@@ -64,10 +64,26 @@ limpo_nomes <- sujo_nomes |>
 
 periodos_ordenados <- levels(limpo_nomes$Periodo)
 
+cor_bg_escuro <- "#222222"
+tema_escuro_ggplot <- theme(
+  panel.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
+  plot.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
+  panel.grid.major = element_line(color = "gray60"),
+  panel.grid.minor = element_line(color = "gray80"),
+  axis.text = element_text(color = "white"),
+  axis.title = element_text(color = "white"),
+  plot.title = element_text(color = "white", hjust = 0.5),
+  plot.subtitle = element_text(color = "white", hjust = 0.5),
+  plot.caption = element_text(color = "white"),
+  legend.background = element_rect(fill = cor_bg_escuro),
+  legend.text = element_text(color = "white"),
+  legend.title = element_text(color = "white")
+)
+
 ui <- navbarPage(
   theme = bs_theme(bootswatch = "minty"),
   title = "Dashboard de Nomes (IBGE)",
-  nav_item(input_dark_mode(mode = "light")),
+  nav_item(input_dark_mode(id = "tema_atual", mode = "light")),
   
   # Aba Principal com Sidebar
   tabPanel("Análise Geral",
@@ -84,14 +100,16 @@ ui <- navbarPage(
              tabsetPanel(
                tabPanel("Evolução (Linhas)", 
                         br(),
-                        checkboxInput("usar_logaritmica", "Utilizar escala logarítmica", value = FALSE),
+                        checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE),
                         plotOutput("grafico_evolucao")),
                
                tabPanel("Tabela Detalhada", 
                         br(), DTOutput("tabela_dados")),
                
                tabPanel("Distribuição (Boxplot)",
-                        br(), h5("Distribuição da frequência dos nomes selecionados"),
+                        br(),
+                        checkboxInput("logaritmica_boxplot", "Utilizar escala logarítmica", value = FALSE),
+                        h5("Distribuição da frequência dos nomes selecionados"),
                         plotOutput("boxplot_nomes")),
                
                tabPanel("Histograma (Tamanho)",
@@ -159,10 +177,11 @@ server <- function(input, output, session) {
         axis.title.x = element_text(margin = margin(t = 10), size = 14),
         axis.title.y = element_text(margin = margin(r = 10), size = 14)
       ) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = "."),
         expand = expansion(mult = c(0.05, 0.2)),
-        trans = if(input$usar_logaritmica) "log10" else "identity"
+        trans = if(input$logaritmica_linhas) "log10" else "identity"
       ) 
   })
   
@@ -201,10 +220,12 @@ server <- function(input, output, session) {
     req(dados_filtrados())
     ggplot(dados_filtrados(), aes(x = Nome, y = Frequência, fill = Nome)) +
       geom_boxplot(alpha = 0.7, show.legend = FALSE) + 
-      geom_jitter(width = 0.2, alpha = 0.5) +
+      geom_jitter(color = ifelse(input$tema_atual == "dark", "white", "black"), width = 0.2, alpha = 0.5) +
       labs(x = "Nome", y = "Frequência", title = "Variabilidade da Frequência") +
       theme_bw() + 
-      theme(text = element_text(size = 14))
+      theme(text = element_text(size = 14)) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      {if (input$logaritmica_boxplot) scale_y_log10()}
   })
   
   # 4. Histograma
@@ -235,6 +256,7 @@ server <- function(input, output, session) {
         plot.title = element_text(size = 16),
         plot.subtitle = element_text(size = 12)
       ) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = "."),
         expand = expansion(mult = c(0, 0.1))
@@ -263,7 +285,11 @@ server <- function(input, output, session) {
       arrange(desc(Frequência)) %>% 
       head(200)
     
-    wordcloud2(df_periodo, size = 1, color = "random-dark")
+    wordcloud2(
+      df_periodo, size = 1,
+      color = ifelse(input$tema_atual == "dark", "random-light", "random-dark"),
+      backgroundColor = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white")
+    )
   })
 }
 
