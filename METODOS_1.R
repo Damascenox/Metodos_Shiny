@@ -1,4 +1,4 @@
-#install.packages(c(
+# install.packages(c(
 #  "shiny",
 #  "tidyverse",
 #  "DT",
@@ -11,7 +11,7 @@
 #  "scales",
 #  "shinyWidgets",
 #  "bslib"
-#))
+# ))
 
 
 library(bslib)
@@ -27,7 +27,7 @@ library(wordcloud2)
 library(scales)
 library(shinyWidgets)
 
-df_nomes <- readRDS("C:/Users/DamaLaptoper/Videos/Metodos/nomes_lista") |>
+df_nomes <- readRDS("nomes_lista.rds") |>
   bind_rows() |>
   as_tibble()
 
@@ -52,7 +52,7 @@ limpo_nomes <- sujo_nomes |>
     
     Periodo = fct_reorder(Periodo, Começo)
   ) |>
-  mutate(Sexo = get_gender(limpo_nomes$nome),
+  mutate(Sexo = get_gender(nome),
          Sexo = if_else(Sexo == "Male", "Masculino", "Feminino")) |>
   select(Nome = nome,
          Sexo,
@@ -83,7 +83,9 @@ ui <- navbarPage(
              
              tabsetPanel(
                tabPanel("Evolução (Linhas)", 
-                        br(), plotOutput("grafico_evolucao")),
+                        br(),
+                        checkboxInput("usar_logaritmica", "Utilizar escala logarítmica", value = FALSE),
+                        plotOutput("grafico_evolucao")),
                
                tabPanel("Tabela Detalhada", 
                         br(), DTOutput("tabela_dados")),
@@ -159,8 +161,9 @@ server <- function(input, output, session) {
       ) +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = "."),
-        expand = expansion(mult = c(0.05, 0.2))
-      )
+        expand = expansion(mult = c(0.05, 0.2)),
+        trans = if(input$usar_logaritmica) "log10" else "identity"
+      ) 
   })
   
   # 2. Tabela
