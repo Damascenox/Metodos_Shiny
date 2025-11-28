@@ -1,3 +1,4 @@
+# ---- pacotes ----
 # install.packages(c(
 #  "shiny",
 #  "tidyverse",
@@ -13,7 +14,6 @@
 #  "bslib"
 # ))
 
-
 library(bslib)
 library(shiny)
 library(tidyverse)
@@ -27,6 +27,7 @@ library(wordcloud2)
 library(scales)
 library(shinyWidgets)
 
+# ---- tratamento ----
 df_nomes <- readRDS("nomes_lista.rds") |>
   bind_rows() |>
   as_tibble()
@@ -54,17 +55,23 @@ limpo_nomes <- sujo_nomes |>
   ) |>
   mutate(Sexo = get_gender(nome),
          Sexo = if_else(Sexo == "Male", "Masculino", "Feminino")) |>
+  mutate(Inicial = toupper(substr(nome, 1, 1))) |>
+  mutate(Comprimento = nchar(nome)) |>
   select(Nome = nome,
          Sexo,
          Localidade = localidade,
          Frequência = frequencia,
          Periodo,
          Começo,
-         Fim)
+         Fim,
+         Inicial,
+         Comprimento)
 
+# ---- valores ----
 periodos_ordenados <- levels(limpo_nomes$Periodo)
 
 cor_bg_escuro <- "#222222"
+
 tema_escuro_ggplot <- theme(
   panel.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
   plot.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
@@ -80,6 +87,7 @@ tema_escuro_ggplot <- theme(
   legend.title = element_text(color = "white")
 )
 
+# ---- ui ----
 ui <- navbarPage(
   theme = bs_theme(bootswatch = "minty"),
   title = "Dashboard de Nomes (IBGE)",
@@ -144,6 +152,7 @@ ui <- navbarPage(
   )
 )
 
+# ---- server ----
 server <- function(input, output, session) {
   
   updateSelectInput(session, "nome_selecionado", choices = sort(unique(limpo_nomes$Nome)))
@@ -174,8 +183,8 @@ server <- function(input, output, session) {
       ) +
       theme_bw() +
       theme(
-        axis.title.x = element_text(margin = margin(t = 10), size = 14),
-        axis.title.y = element_text(margin = margin(r = 10), size = 14)
+        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14)
       ) +
       {if (input$tema_atual == "dark") tema_escuro_ggplot} +
       scale_y_continuous(
@@ -232,12 +241,11 @@ server <- function(input, output, session) {
   output$histograma_comprimento <- renderPlot({
     req(input$periodo_hist)
     df_periodo <- limpo_nomes %>% 
-      filter(Periodo == input$periodo_hist) %>% 
-      mutate(comprimento = nchar(Nome))
+      filter(Periodo == input$periodo_hist)
     
-    p <- ggplot(df_periodo, aes(x = comprimento, weight = Frequência))
+    p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência))
     if (input$dividir_sexo) {
-      p <- ggplot(df_periodo, aes(x = comprimento, weight = Frequência, fill = Sexo)) +
+      p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência, fill = Sexo)) +
         geom_histogram(binwidth = 1, position = "dodge", color = "white", alpha = 0.8)
     } else {
       p <- p + geom_histogram(binwidth = 1, fill = "skyblue", color = "white", alpha = 0.8)
@@ -251,8 +259,8 @@ server <- function(input, output, session) {
       ) +
       theme_bw() +
       theme(
-        axis.title.x = element_text(margin = margin(t = 10), size = 14),
-        axis.title.y = element_text(margin = margin(r = 10), size = 14),
+        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14),
         plot.title = element_text(size = 16),
         plot.subtitle = element_text(size = 12)
       ) +
@@ -261,9 +269,8 @@ server <- function(input, output, session) {
         labels = scales::comma_format(big.mark = "."),
         expand = expansion(mult = c(0, 0.1))
       ) +
-      scale_x_continuous(breaks = seq(0, max(df_periodo$comprimento), by = 1))
+      scale_x_continuous(breaks = seq(0, max(df_periodo$Comprimento), by = 1))
   })
-  
   
   # 5. Nuvem de Palavras
   output$nuvem_nomes <- renderWordcloud2({
@@ -271,13 +278,12 @@ server <- function(input, output, session) {
     
     df_periodo <- limpo_nomes %>%
       filter(Periodo == input$periodo_nuvem_slider) %>% 
-      select(Nome, Frequência) %>%
+      select(Nome, Frequência, Inicial) %>%
       filter(Frequência > 0)
     
     if (input$usar_iniciais) {
       df_periodo <- df_periodo %>%
-        mutate(Nome = toupper(substr(Nome, 1, 1))) %>%
-        group_by(Nome) %>% 
+        group_by(Inicial) %>% 
         summarise(Frequência = sum(Frequência), .groups = "drop")
     }
     
@@ -293,4 +299,5 @@ server <- function(input, output, session) {
   })
 }
 
+# ---- shinyApp ----
 shinyApp(ui, server)
