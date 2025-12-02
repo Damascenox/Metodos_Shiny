@@ -106,19 +106,14 @@ ui <- navbarPage(
              ),
              
              tabsetPanel(
-               tabPanel("Evolução (Linhas)", 
-                        br(),
-                        checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE),
-                        plotOutput("grafico_evolucao")),
+               tabPanel("Evolução (Linhas)",
+                        uiOutput("grafico_evolucao_conteiner")),
                
                tabPanel("Tabela Detalhada", 
-                        br(), DTOutput("tabela_dados")),
+                        uiOutput("tabela_dados_conteiner")),
                
                tabPanel("Distribuição (Boxplot)",
-                        br(),
-                        checkboxInput("logaritmica_boxplot", "Utilizar escala logarítmica", value = FALSE),
-                        h5("Distribuição da frequência dos nomes selecionados"),
-                        plotOutput("boxplot_nomes")),
+                        uiOutput("boxplot_nomes_conteiner")),
                
                tabPanel("Histograma (Tamanho)",
                         br(),
@@ -162,7 +157,25 @@ server <- function(input, output, session) {
     limpo_nomes |> filter(Nome %in% input$nome_selecionado) |> arrange(Começo)
   })
   
-  # 1. Gráfico
+  # 1. Gráfico ----
+  output$grafico_evolucao_conteiner <- renderUI({
+    if (length(input$nome_selecionado) == 0) {
+      tags$div(
+        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+        tags$div(
+          tags$p("Selecione um nome na aba lateral", 
+                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        )
+      )
+    } else {
+      tagList(
+        br(),
+        checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE),
+        plotOutput("grafico_evolucao") 
+      )
+    }
+  })
+  
   output$grafico_evolucao <- renderPlot({
     req(dados_filtrados())
     
@@ -194,7 +207,24 @@ server <- function(input, output, session) {
       ) 
   })
   
-  # 2. Tabela
+  # 2. Tabela ----
+  output$tabela_dados_conteiner <- renderUI({
+    if (length(input$nome_selecionado) == 0) {
+      tags$div(
+        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+        tags$div(
+          tags$p("Selecione um nome na aba lateral", 
+                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        )
+      )
+    } else {
+      tagList(
+        br(),
+        DTOutput("tabela_dados")
+      )
+    }
+  })
+  
   output$tabela_dados <- renderDT({
     req(dados_filtrados())
     
@@ -247,7 +277,26 @@ server <- function(input, output, session) {
       )
   })
   
-  # 3. Boxplot
+  # 3. Boxplot ----
+  output$boxplot_nomes_conteiner <- renderUI({
+    if (length(input$nome_selecionado) == 0) {
+      tags$div(
+        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+        tags$div(
+          tags$p("Selecione um nome na aba lateral", 
+                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        )
+      )
+    } else {
+      tagList(
+        br(),
+        checkboxInput("logaritmica_boxplot", "Utilizar escala logarítmica", value = FALSE),
+        h5("Distribuição da frequência dos nomes selecionados"),
+        plotOutput("boxplot_nomes")
+      )
+    }
+  })
+  
   output$boxplot_nomes <- renderPlot({
     req(dados_filtrados())
     ggplot(dados_filtrados(), aes(x = Nome, y = Frequência, fill = Nome)) +
@@ -260,7 +309,7 @@ server <- function(input, output, session) {
       {if (input$logaritmica_boxplot) scale_y_log10()}
   })
   
-  # 4. Histograma
+  # 4. Histograma ----
   output$histograma_comprimento <- renderPlot({
     req(input$periodo_hist)
     df_periodo <- limpo_nomes %>% 
@@ -295,7 +344,7 @@ server <- function(input, output, session) {
       scale_x_continuous(breaks = seq(0, max(df_periodo$Comprimento), by = 1))
   })
   
-  # 5. Nuvem de Palavras
+  # 5. Nuvem de Palavras ----
   output$nuvem_nomes <- renderWordcloud2({
     req(input$periodo_nuvem_slider)
     
