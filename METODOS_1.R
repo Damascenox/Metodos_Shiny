@@ -1,4 +1,4 @@
-# ---- pacotes ----
+# pacotes ----
 # install.packages(c(
 #  "shiny",
 #  "tidyverse",
@@ -27,7 +27,7 @@ library(wordcloud2)
 library(scales)
 library(shinyWidgets)
 
-# ---- tratamento ----
+# tratamento ----
 df_nomes <- readRDS("nomes_lista.rds") |>
   bind_rows() |>
   as_tibble()
@@ -47,11 +47,11 @@ limpo_nomes <- sujo_nomes |>
     Começo = ifelse(ano_inicio == 1930 & is.na(ano_fim), 1929, ano_inicio),
     Fim = ifelse(is.na(ano_fim) & ano_inicio < 1940, 1930, ano_fim),
     
-    Periodo = case_when(
+    Período = case_when(
       Começo < 1930 ~ "Antes de 1930",
       TRUE ~ paste(Começo, "a", Fim)),
     
-    Periodo = fct_reorder(Periodo, Começo)
+    Período = fct_reorder(Período, Começo)
   ) |>
   mutate(Sexo = get_gender(nome),
          Sexo = if_else(Sexo == "Male", "Masculino", "Feminino")) |>
@@ -61,14 +61,14 @@ limpo_nomes <- sujo_nomes |>
          Sexo,
          Localidade = localidade,
          Frequência = frequencia,
-         Periodo,
+         Período,
          Começo,
          Fim,
          Inicial,
          Comprimento)
 
-# ---- valores ----
-periodos_ordenados <- levels(limpo_nomes$Periodo)
+# valores ----
+periodos_ordenados <- levels(limpo_nomes$Período)
 
 cor_bg_escuro <- "#222222"
 
@@ -87,7 +87,7 @@ tema_escuro_ggplot <- theme(
   legend.title = element_text(color = "white")
 )
 
-# ---- ui ----
+# ui ----
 ui <- navbarPage(
   theme = bs_theme(bootswatch = "minty"),
   title = "Dashboard de Nomes (IBGE)",
@@ -152,7 +152,7 @@ ui <- navbarPage(
   )
 )
 
-# ---- server ----
+# server ----
 server <- function(input, output, session) {
   
   updateSelectInput(session, "nome_selecionado", choices = sort(unique(limpo_nomes$Nome)))
@@ -166,7 +166,7 @@ server <- function(input, output, session) {
   output$grafico_evolucao <- renderPlot({
     req(dados_filtrados())
     
-    ggplot(dados_filtrados(), aes(x = Periodo, y = Frequência, 
+    ggplot(dados_filtrados(), aes(x = Período, y = Frequência, 
                                   color = Nome, group = Nome)) +
       geom_line(size = 1.2) +
       geom_point(size = 4) +
@@ -204,7 +204,7 @@ server <- function(input, output, session) {
       mutate(Total_Filtro = sum(Frequência)) |> 
       mutate('Frequência Relativa' = (Frequência / Total_Filtro)) |> 
       ungroup() |>
-      select(Nome, Localidade, Frequência, 'Frequência Relativa', Periodo)
+      select(Nome, Localidade, Frequência, 'Frequência Relativa', Período)
     
     datatable(
       df_normalizado,
@@ -213,7 +213,30 @@ server <- function(input, output, session) {
       options = list(
         pageLength = 10,
         dom = 'Bfrtip',
-        buttons = c('copy', 'csv', 'excel')
+        buttons = c('copy', 'csv', 'excel'),
+        language = list(
+          search = 'Pesquisar', 
+          lengthMenu = 'Exibir _MENU_ registros por página',
+          info = 'Mostrando _START_ até _END_ de _TOTAL_ registro(s)',
+          infoEmpty = 'Nenhum registro disponível',
+          infoFiltered = '(filtrado de _MAX_ registro(s))',
+          paginate = list(
+            first = 'Primeiro', 
+            previous = 'Anterior', 
+            `next` = 'Próximo', 
+            last = 'Último'
+          ),
+          buttons = list(
+            copyTitle = 'Copiado para a área de transferência',
+            copySuccess = list(
+              `1` = '1 linha copiada com sucesso',
+              `_` = '%d linhas copiadas com sucesso'
+            ),
+            copy = 'Copiar',
+            csv = 'Baixar como CSV',
+            excel = 'Baixar como Excel'
+          )
+        )
       ),
       extensions = 'Buttons'
     )|> 
@@ -241,7 +264,7 @@ server <- function(input, output, session) {
   output$histograma_comprimento <- renderPlot({
     req(input$periodo_hist)
     df_periodo <- limpo_nomes %>% 
-      filter(Periodo == input$periodo_hist)
+      filter(Período == input$periodo_hist)
     
     p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência))
     if (input$dividir_sexo) {
@@ -277,7 +300,7 @@ server <- function(input, output, session) {
     req(input$periodo_nuvem_slider)
     
     df_periodo <- limpo_nomes %>%
-      filter(Periodo == input$periodo_nuvem_slider) %>% 
+      filter(Período == input$periodo_nuvem_slider) %>% 
       select(Nome, Frequência, Inicial) %>%
       filter(Frequência > 0)
     
@@ -299,5 +322,5 @@ server <- function(input, output, session) {
   })
 }
 
-# ---- shinyApp ----
+# shinyApp ----
 shinyApp(ui, server)
