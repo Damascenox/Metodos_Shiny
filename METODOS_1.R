@@ -250,6 +250,7 @@ server <- function(input, output, session) {
           info = 'Mostrando _START_ até _END_ de _TOTAL_ registro(s)',
           infoEmpty = 'Nenhum registro disponível',
           infoFiltered = '(filtrado de _MAX_ registro(s))',
+          zeroRecords = 'Nenhum registro correspondente encontrado',
           paginate = list(
             first = 'Primeiro', 
             previous = 'Anterior', 
