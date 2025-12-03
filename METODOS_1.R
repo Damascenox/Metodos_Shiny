@@ -136,6 +136,9 @@ ui <- navbarPage(
                             margin-right: 20px;
                           }
                         ")),
+                        br(),
+                        hr(),
+                        br(),
                         radioButtons(
                           inputId = "numero_letras",
                           label = "Selecione o número de letras:",
@@ -202,6 +205,9 @@ server <- function(input, output, session) {
     } else {
       tagList(
         plotOutput("grafico_evolucao"),
+        br(),
+        hr(),
+        br(),
         plotOutput("grafico_regressao")
       )
     }
@@ -440,7 +446,7 @@ server <- function(input, output, session) {
   
   observe({
     invalidateLater(intervalo, session)
-    showNotification("Nasceu algúem com um nome da sala!", type = "message", duration = 8)
+    showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
   })
 }
 
