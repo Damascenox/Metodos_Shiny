@@ -13,6 +13,7 @@
 #  "shinyWidgets",
 #  "bslib"
 #  "shinyjs"
+#  "shinyAce"
 # ))
 
 library(bslib)
@@ -28,6 +29,7 @@ library(wordcloud2)
 library(scales)
 library(shinyWidgets)
 library(shinyjs)
+library(shinyAce)
 
 # tratamento ----
 df_nomes <- readRDS("nomes_lista.rds") |>
@@ -89,11 +91,117 @@ tema_escuro_ggplot <- theme(
   legend.title = element_text(color = "white")
 )
 
+# funções ----
+adicionar_tags_script <- function(painel, aba) {
+  input_id <- paste0(aba, "_dblclick")
+  
+  tags$script(
+    sprintf(
+      "$('#%s a[data-value=\"%s\"]').on('dblclick', function(e) {
+                     e.preventDefault();
+                     Shiny.setInputValue('%s', new Date().getTime(), {priority: 'event'});
+                   });", 
+      painel, aba, input_id
+    )
+  )
+}
+
+# códigos ----
+CODIGO_UI_LINHAS <-
+'tabPanel("Evolução (Linhas)",
+          value = "aba_linhas",
+          br(),
+          div(
+            id = "log_checkbox_linhas",
+            checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE)
+          ),
+          uiOutput("grafico_evolucao_conteiner"))'
+
+CODIGO_SERVER_LINHAS <-
+'output$grafico_evolucao_conteiner <- renderUI({
+    if (length(input$nome_selecionado) == 0) {
+      tags$div(
+        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+        tags$div(
+          tags$p("Selecione um nome na aba lateral", 
+                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        )
+      )
+    } else {
+      tagList(
+        plotOutput("grafico_evolucao"),
+        br(),
+        hr(),
+        br(),
+        plotOutput("grafico_regressao")
+      )
+    }
+  })
+  
+  output$grafico_evolucao <- renderPlot({
+    req(dados_filtrados())
+    
+    ggplot(dados_filtrados(), aes(x = Período, y = Frequência, 
+                                  color = Nome, group = Nome)) +
+      geom_line(size = 1.2) +
+      geom_point(size = 4) +
+      geom_label(aes(label = scales::comma(Frequência, big.mark = ".", decimal.mark = ",")), 
+                 vjust = -0.7, 
+                 show.legend = FALSE,
+                 size = 3) +
+      labs(
+        title = "Evolução do Número de Nascimentos",
+        subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),
+        x = "Período",
+        y = "Número de Nascimentos",
+        color = "Nome"
+      ) +
+      theme_bw() +
+      theme(
+        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14)
+      ) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      scale_y_continuous(
+        labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
+        expand = expansion(mult = c(0.05, 0.2)),
+        trans = if(input$logaritmica_linhas) "log10" else "identity"
+      ) 
+  })
+  
+  output$grafico_regressao <- renderPlot({
+    req(dados_filtrados())
+    
+    ggplot(dados_filtrados(), aes(x = Período, y = Frequência,
+                                  color = Nome, group = Nome)) +
+      geom_smooth(method = "lm", se = FALSE, linewidth = 1.4) +
+      labs(
+        title = "Linhas de Regressão por Nome",
+        subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),
+        x = "Período",
+        y = "Número de Nascimentos",
+        color = "Nome"
+      ) +
+      theme_bw() +
+      theme(
+        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14)
+      ) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      scale_y_continuous(
+        labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
+        expand = expansion(mult = c(0.05, 0.2)),
+        trans = if(input$logaritmica_linhas) "log10" else "identity"
+      )
+  })'
+
 # ui ----
 ui <- navbarPage(
   theme = bs_theme(bootswatch = "minty"),
   title = "Dashboard de Nomes (IBGE)",
   nav_item(input_dark_mode(id = "tema_atual", mode = "light")),
+  
+  useShinyjs(), # pra controlar quando o checkbox aparece, preservando o estado do toggle
   
   # Aba Principal com Sidebar
   tabPanel("Análise Geral",
@@ -108,22 +216,29 @@ ui <- navbarPage(
              ),
              
              tabsetPanel(
+               id = "painel",
+               
+               # 1. Gráfico ----
                tabPanel("Evolução (Linhas)",
+                        value = "aba_linhas",
                         br(),
-                        useShinyjs(), # pra controlar quando o checkbox aparece, preservando o estado do toggle
                         div(
                           id = "log_checkbox_linhas",
                           checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE)
                         ),
                         uiOutput("grafico_evolucao_conteiner")),
                
+               # 2. Tabela ----
                tabPanel("Tabela Detalhada",
+                        value = "aba_tabela",
                         br(),
                         uiOutput("tabela_dados_conteiner")),
                
+               # 3. ??? ----
                tabPanel("???",
                         br()),
                
+               # 4. Histograma ----
                tabPanel("Histograma (Tamanho)",
                         br(),
                         fluidRow(
@@ -148,6 +263,7 @@ ui <- navbarPage(
                         ),
                         plotOutput("barras_comprimento")),
                
+               # 5. Nuvem de Palavras ----
                tabPanel("Nuvem de Palavras",
                         br(),
                         fluidRow(
@@ -166,7 +282,11 @@ ui <- navbarPage(
                           )
                         ),
                         wordcloud2Output("nuvem_nomes", height = "600px")
-               )
+               ),
+               
+               # Códigos ----
+               adicionar_tags_script("painel", "aba_linhas"),
+               adicionar_tags_script("painel", "aba_tabela")
              )
            )
   )
@@ -185,10 +305,8 @@ server <- function(input, output, session) {
   observe({
     if (length(input$nome_selecionado) == 0) {
       shinyjs::hide("log_checkbox_linhas")
-      shinyjs::hide("log_checkbox_boxplot")
     } else {
       shinyjs::show("log_checkbox_linhas")
-      shinyjs::show("log_checkbox_boxplot")
     }
   })
   
@@ -448,6 +566,53 @@ server <- function(input, output, session) {
     invalidateLater(intervalo, session)
     showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
   })
+  
+  # a) Código: Gráfico ----
+  observeEvent(input$aba_linhas_dblclick, {
+    showModal(
+      modalDialog(
+        title = "Código: Gráfico de Linhas",
+        footer = modalButton("Fechar"),
+        easyClose = TRUE,
+        size = "xl",
+        
+        tabsetPanel(
+          tabPanel(
+            title = "ui",
+            aceEditor(
+              outputId = "display_ui_linhas",
+              mode = "r",
+              theme = ifelse(input$tema_atual == "dark", "monokai", "github"),
+              readOnly = TRUE,
+              value = CODIGO_UI_LINHAS
+            )
+          ),
+          
+          tabPanel(
+            title = "server",
+            aceEditor(
+              outputId = "display_server_linhas",
+              mode = "r",
+              theme = ifelse(input$tema_atual == "dark", "monokai", "github"),
+              readOnly = TRUE,
+              value = CODIGO_SERVER_LINHAS
+            )
+          )
+        )
+      )
+    )
+  }, ignoreInit = TRUE)
+  
+  # b) Código: Tabela ----
+  observeEvent(input$aba_tabela_dblclick, {
+    showModal(
+      modalDialog(
+        title = "código",
+        footer = modalButton("Fechar"),
+        easyClose = TRUE
+      )
+    )
+  }, ignoreInit = TRUE)
 }
 
 # shinyApp ----
