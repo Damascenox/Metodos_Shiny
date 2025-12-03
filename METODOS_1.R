@@ -136,7 +136,20 @@ ui <- navbarPage(
                           column(6, selectInput("periodo_hist", "Escolha o Período:", choices = periodos_ordenados)),
                           column(6, checkboxInput("dividir_sexo", "Dividir por sexo", value = FALSE))
                         ),
-                        plotOutput("histograma_comprimento")),
+                        plotOutput("histograma_comprimento"),
+                        tags$style(HTML("
+                          #numero_letras .radio-inline {
+                            margin-right: 20px;
+                          }
+                        ")),
+                        radioButtons(
+                          inputId = "numero_letras",
+                          label = "Selecione o número de letras:",
+                          choices = 3:9,
+                          selected = 3,
+                          inline = TRUE
+                        ),
+                        plotOutput("barras_comprimento")),
                
                tabPanel("Nuvem de Palavras",
                         br(),
@@ -390,6 +403,43 @@ server <- function(input, output, session) {
         expand = expansion(mult = c(0, 0.1))
       ) +
       scale_x_continuous(breaks = seq(0, max(df_periodo$Comprimento), by = 1))
+  })
+  
+  output$barras_comprimento <- renderPlot({
+    req(input$periodo_hist)
+    df_periodo <- limpo_nomes %>% 
+      filter(Período == input$periodo_hist, Comprimento == input$numero_letras)
+    
+    p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência))
+    if (input$dividir_sexo) {
+      df_periodo <- df_periodo %>%
+        mutate(Frequência = ifelse(Sexo == "Masculino", -Frequência, Frequência))
+      p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência, fill = Sexo)) +
+        geom_col(alpha = 0.8) +
+        coord_flip()
+    } else {
+      p <- p + geom_col(fill = "skyblue", alpha = 0.8) +
+        coord_flip()
+    }
+    p + 
+      labs(
+        title = "Distribuição dos Nomes por Comprimento",
+        subtitle = paste("Período:", input$periodo_hist, "| Letras:", input$numero_letras),
+        x = "Nome",
+        y = "Total de Nascimentos"
+      ) +
+      theme_bw() +
+      theme(
+        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12)
+      ) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      scale_y_continuous(
+        labels = function(x) scales::comma_format(big.mark = ".", decimal.mark = ",")(abs(x)),
+        expand = expansion(mult = c(0, 0.1))
+      )
   })
   
   # 5. Nuvem de Palavras ----
