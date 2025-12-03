@@ -77,8 +77,8 @@ cor_bg_escuro <- "#222222"
 tema_escuro_ggplot <- theme(
   panel.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
   plot.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
-  panel.grid.major = element_line(color = "gray60"),
-  panel.grid.minor = element_line(color = "gray80"),
+  panel.grid.major = element_line(color = "gray35"),
+  panel.grid.minor = element_line(color = "gray30"),
   axis.text = element_text(color = "white"),
   axis.title = element_text(color = "white"),
   plot.title = element_text(color = "white", hjust = 0.5),
@@ -257,7 +257,6 @@ server <- function(input, output, session) {
       )
   })
   
-  
   # 2. Tabela ----
   output$tabela_dados_conteiner <- renderUI({
     if (length(input$nome_selecionado) == 0) {
@@ -417,6 +416,15 @@ server <- function(input, output, session) {
       color = ifelse(input$tema_atual == "dark", "random-light", "random-dark"),
       backgroundColor = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white")
     )
+  })
+  
+  # 6. Notificações Nascimentos ----
+  intervalo <- (1000 * 60 * 60 * 24 * 365 * 10) /
+    sum(limpo_nomes[limpo_nomes$Período == "2000 a 2010", ]$Frequência)
+  
+  observe({
+    invalidateLater(intervalo, session)
+    showNotification("Nasceu algúem com um nome da sala!", type = "message", duration = 8)
   })
 }
 
