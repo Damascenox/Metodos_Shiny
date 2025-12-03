@@ -12,6 +12,7 @@
 #  "scales",
 #  "shinyWidgets",
 #  "bslib"
+#  "shinyjs"
 # ))
 
 library(bslib)
@@ -26,6 +27,7 @@ library(purrr)
 library(wordcloud2)
 library(scales)
 library(shinyWidgets)
+library(shinyjs)
 
 # tratamento ----
 df_nomes <- readRDS("nomes_lista.rds") |>
@@ -107,12 +109,25 @@ ui <- navbarPage(
              
              tabsetPanel(
                tabPanel("Evolução (Linhas)",
+                        br(),
+                        useShinyjs(), # pra controlar quando o checkbox aparece, preservando o estado do toggle
+                        div(
+                          id = "log_checkbox_linhas",
+                          checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE)
+                        ),
                         uiOutput("grafico_evolucao_conteiner")),
                
-               tabPanel("Tabela Detalhada", 
+               tabPanel("Tabela Detalhada",
+                        br(),
                         uiOutput("tabela_dados_conteiner")),
                
                tabPanel("Distribuição (Boxplot)",
+                        br(),
+                        useShinyjs(),
+                        div(
+                          id = "log_checkbox_boxplot",
+                          checkboxInput("logaritmica_boxplot", "Utilizar escala logarítmica", value = FALSE)
+                        ),
                         uiOutput("boxplot_nomes_conteiner")),
                
                tabPanel("Histograma (Tamanho)",
@@ -157,6 +172,16 @@ server <- function(input, output, session) {
     limpo_nomes |> filter(Nome %in% input$nome_selecionado) |> arrange(Começo)
   })
   
+  observe({
+    if (length(input$nome_selecionado) == 0) {
+      shinyjs::hide("log_checkbox_linhas")
+      shinyjs::hide("log_checkbox_boxplot")
+    } else {
+      shinyjs::show("log_checkbox_linhas")
+      shinyjs::show("log_checkbox_boxplot")
+    }
+  })
+  
   # 1. Gráfico ----
   output$grafico_evolucao_conteiner <- renderUI({
     if (length(input$nome_selecionado) == 0) {
@@ -169,9 +194,8 @@ server <- function(input, output, session) {
       )
     } else {
       tagList(
-        br(),
-        checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE),
-        plotOutput("grafico_evolucao") 
+        plotOutput("grafico_evolucao"),
+        plotOutput("grafico_regressao")
       )
     }
   })
@@ -183,7 +207,7 @@ server <- function(input, output, session) {
                                   color = Nome, group = Nome)) +
       geom_line(size = 1.2) +
       geom_point(size = 4) +
-      geom_label(aes(label = scales::comma(Frequência, big.mark = ".")), 
+      geom_label(aes(label = scales::comma(Frequência, big.mark = ".", decimal.mark = ",")), 
                  vjust = -0.7, 
                  show.legend = FALSE,
                  size = 3) +
@@ -201,11 +225,38 @@ server <- function(input, output, session) {
       ) +
       {if (input$tema_atual == "dark") tema_escuro_ggplot} +
       scale_y_continuous(
-        labels = scales::comma_format(big.mark = "."),
+        labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
         expand = expansion(mult = c(0.05, 0.2)),
         trans = if(input$logaritmica_linhas) "log10" else "identity"
       ) 
   })
+  
+  output$grafico_regressao <- renderPlot({
+    req(dados_filtrados())
+    
+    ggplot(dados_filtrados(), aes(x = Período, y = Frequência,
+                                  color = Nome, group = Nome)) +
+      geom_smooth(method = "lm", se = FALSE, linewidth = 1.4) +
+      labs(
+        title = "Linhas de Regressão por Nome",
+        subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),
+        x = "Período",
+        y = "Número de Nascimentos",
+        color = "Nome"
+      ) +
+      theme_bw() +
+      theme(
+        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14)
+      ) +
+      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      scale_y_continuous(
+        labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
+        expand = expansion(mult = c(0.05, 0.2)),
+        trans = if(input$logaritmica_linhas) "log10" else "identity"
+      )
+  })
+  
   
   # 2. Tabela ----
   output$tabela_dados_conteiner <- renderUI({
@@ -219,7 +270,6 @@ server <- function(input, output, session) {
       )
     } else {
       tagList(
-        br(),
         DTOutput("tabela_dados")
       )
     }
@@ -290,8 +340,6 @@ server <- function(input, output, session) {
       )
     } else {
       tagList(
-        br(),
-        checkboxInput("logaritmica_boxplot", "Utilizar escala logarítmica", value = FALSE),
         h5("Distribuição da frequência dos nomes selecionados"),
         plotOutput("boxplot_nomes")
       )
@@ -339,7 +387,7 @@ server <- function(input, output, session) {
       ) +
       {if (input$tema_atual == "dark") tema_escuro_ggplot} +
       scale_y_continuous(
-        labels = scales::comma_format(big.mark = "."),
+        labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
         expand = expansion(mult = c(0, 0.1))
       ) +
       scale_x_continuous(breaks = seq(0, max(df_periodo$Comprimento), by = 1))
