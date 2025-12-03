@@ -121,14 +121,8 @@ ui <- navbarPage(
                         br(),
                         uiOutput("tabela_dados_conteiner")),
                
-               tabPanel("Distribuição (Boxplot)",
-                        br(),
-                        useShinyjs(),
-                        div(
-                          id = "log_checkbox_boxplot",
-                          checkboxInput("logaritmica_boxplot", "Utilizar escala logarítmica", value = FALSE)
-                        ),
-                        uiOutput("boxplot_nomes_conteiner")),
+               tabPanel("???",
+                        br()),
                
                tabPanel("Histograma (Tamanho)",
                         br(),
@@ -340,35 +334,7 @@ server <- function(input, output, session) {
       )
   })
   
-  # 3. Boxplot ----
-  output$boxplot_nomes_conteiner <- renderUI({
-    if (length(input$nome_selecionado) == 0) {
-      tags$div(
-        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
-        tags$div(
-          tags$p("Selecione um nome na aba lateral", 
-                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
-        )
-      )
-    } else {
-      tagList(
-        h5("Distribuição da frequência dos nomes selecionados"),
-        plotOutput("boxplot_nomes")
-      )
-    }
-  })
-  
-  output$boxplot_nomes <- renderPlot({
-    req(dados_filtrados())
-    ggplot(dados_filtrados(), aes(x = Nome, y = Frequência, fill = Nome)) +
-      geom_boxplot(alpha = 0.7, show.legend = FALSE) + 
-      geom_jitter(color = ifelse(input$tema_atual == "dark", "white", "black"), width = 0.2, alpha = 0.5) +
-      labs(x = "Nome", y = "Frequência", title = "Variabilidade da Frequência") +
-      theme_bw() + 
-      theme(text = element_text(size = 14)) +
-      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
-      {if (input$logaritmica_boxplot) scale_y_log10()}
-  })
+  # 3. ??? ----
   
   # 4. Histograma ----
   output$histograma_comprimento <- renderPlot({
