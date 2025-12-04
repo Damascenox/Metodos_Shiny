@@ -34,7 +34,7 @@ library(shinyAce)
 library(bsicons)
 
 # tratamento ----
-df_nomes <- readRDS("nomes_lista") |>
+df_nomes <- readRDS("nomes_lista.rds") |>
   bind_rows() |>
   as_tibble()
 
@@ -108,9 +108,9 @@ adicionar_tags_script <- function(painel, aba) {
   )
 }
 
-# códigos ----
+# CODIGO_UI_LINHAS ----
 CODIGO_UI_LINHAS <-
-'tabPanel("Evolução (Linhas)",
+  'tabPanel("Evolução (Linhas)",
           value = "aba_linhas",
           br(),
           div(
@@ -119,8 +119,9 @@ CODIGO_UI_LINHAS <-
           ),
           uiOutput("grafico_evolucao_conteiner"))'
 
+# CODIGO_SERVER_LINHAS ----
 CODIGO_SERVER_LINHAS <-
-'output$grafico_evolucao_conteiner <- renderUI({
+  'output$grafico_evolucao_conteiner <- renderUI({
     if (length(input$nome_selecionado) == 0) {
       tags$div(
         style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
@@ -197,6 +198,42 @@ CODIGO_SERVER_LINHAS <-
       )
   })'
 
+# CODIGO_PACOTES ----
+CODIGO_PACOTES <-
+  '# install.packages(c(
+  #  "shiny",
+  #  "tidyverse",
+  #  "DT",
+  #  "genderBR",
+  #  "dplyr",
+  #  "ggplot2",
+  #  "tidyr",
+  #  "purrr",
+  #  "wordcloud2",
+  #  "scales",
+  #  "shinyWidgets",
+  #  "bslib"
+  #  "shinyjs"
+  #  "shinyAce"
+  #  "bsicons"
+  # ))
+  
+  library(bslib)
+  library(shiny)
+  library(tidyverse)
+  library(DT)
+  library(genderBR)
+  library(dplyr)
+  library(ggplot2)
+  library(tidyr)
+  library(purrr)
+  library(wordcloud2)
+  library(scales)
+  library(shinyWidgets)
+  library(shinyjs)
+  library(shinyAce)
+  library(bsicons)'
+
 # ui ----
 ui <- navbarPage(
   fillable = TRUE,
@@ -205,7 +242,9 @@ ui <- navbarPage(
   title = "Dashboard de Nomes (IBGE)",
   nav_item(input_dark_mode(id = "tema_atual", mode = "light")),
   
-  # Aba Principal com Sidebar Moderna
+  useShinyjs(), # pra controlar quando o checkbox etc aparecem, preservando o estado
+  
+  # Aba Principal com Sidebar Moderna ----
   tabPanel("Análise Geral",
            page_sidebar(
              sidebar = sidebar(
@@ -232,10 +271,29 @@ ui <- navbarPage(
                                selected = NULL,
                                multiple = TRUE),
                  ),
+                 
                  accordion_panel(
                    "Configurações",
                    icon = bs_icon("gear-fill"),
                    p("Filtros adicionais aparecerão aqui no futuro.", class = "small text-muted")
+                 ),
+                 
+                 accordion_panel(
+                   "Códigos",
+                   icon = bs_icon("code-slash"),
+                   p("Para mais códigos, clique duas vezes em uma aba.", class = "small text-muted"),
+                   div(class = "list-group",
+                       actionLink("codigo_pacotes", "Pacotes",
+                                  class = "list-group-item list-group-item-action"),
+                       actionLink("codigo_tratamento", "Tratamento",
+                                  class = "list-group-item list-group-item-action"),
+                       actionLink("codigo_valores", "Valores",
+                                  class = "list-group-item list-group-item-action"),
+                       actionLink("codigo_funcoes", "Funções",
+                                  class = "list-group-item list-group-item-action"),
+                       actionLink("ola", "ui? server?",
+                                  class = "list-group-item list-group-item-action")
+                   )
                  )
                ),
                
@@ -266,23 +324,26 @@ ui <- navbarPage(
                         br(),
                         uiOutput("tabela_dados_conteiner")),
                
+               # 3. Heatmap (Com Lógica de Proporção) ----
                tabPanel("Mapa de Calor",
                         br(),
-                        card(
-                          card_header("Configuração do Mapa de Calor"),
-                          radioButtons(
-                            "tipo_heatmap",
-                            label = "O que você quer comparar?",
-                            choices = c(
-                              "Pico do próprio nome (Quando ele foi mais famoso?)" = "pico",
-                              "Proporção Real (Considerando o tamanho da população)" = "proporcao"
-                            ),
-                            selected = "pico",
-                            inline = TRUE
+                        div(
+                          id = "card_heatmap",
+                          card(
+                            card_header("Configuração do Mapa de Calor"),
+                            radioButtons(
+                              "tipo_heatmap",
+                              label = "O que você quer comparar?",
+                              choices = c(
+                                "Pico do próprio nome (Quando ele foi mais famoso?)" = "pico",
+                                "Proporção Real (Considerando o tamanho da população)" = "proporcao"
+                              ),
+                              selected = "pico",
+                              inline = TRUE
+                            )
                           )
                         ),
-                        br(),
-                        plotOutput("heatmap_iniciais", height = "600px")),
+                        uiOutput("heatmap_iniciais_conteiner", height = "600px")),
                
                # 4. Histograma ----
                tabPanel("Histograma (Tamanho)",
@@ -350,7 +411,6 @@ ui <- navbarPage(
            )
   ))
 
-
 # server ----
 server <- function(input, output, session) {
   
@@ -364,8 +424,10 @@ server <- function(input, output, session) {
   observe({
     if (length(input$nome_selecionado) == 0) {
       shinyjs::hide("log_checkbox_linhas")
+      shinyjs::hide("card_heatmap")
     } else {
       shinyjs::show("log_checkbox_linhas")
+      shinyjs::show("card_heatmap")
     }
   })
   
@@ -518,6 +580,23 @@ server <- function(input, output, session) {
   })
   
   # 3. Heatmap (Com Lógica de Proporção) ----
+  output$heatmap_iniciais_conteiner <- renderUI({
+    if (length(input$nome_selecionado) == 0) {
+      tags$div(
+        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+        tags$div(
+          tags$p("Selecione um nome na aba lateral", 
+                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        )
+      )
+    } else {
+      tagList(
+        br(),
+        plotOutput("heatmap_iniciais", height = "600px")
+      )
+    }
+  })
+  
   output$heatmap_iniciais <- renderPlot({
     req(dados_filtrados())
     
@@ -707,6 +786,26 @@ server <- function(input, output, session) {
         title = "código",
         footer = modalButton("Fechar"),
         easyClose = TRUE
+      )
+    )
+  }, ignoreInit = TRUE)
+  
+  # e) Código: Pacotes ----
+  observeEvent(input$codigo_pacotes, {
+    showModal(
+      modalDialog(
+        title = "Código: Pacotes",
+        footer = modalButton("Fechar"),
+        easyClose = TRUE,
+        size = "xl",
+        
+        aceEditor(
+          outputId = "display_pacotes",
+          mode = "r",
+          theme = ifelse(input$tema_atual == "dark", "monokai", "github"),
+          readOnly = TRUE,
+          value = CODIGO_PACOTES
+        )
       )
     )
   }, ignoreInit = TRUE)
