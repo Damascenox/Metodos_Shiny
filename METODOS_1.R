@@ -14,6 +14,7 @@
 #  "bslib"
 #  "shinyjs"
 #  "shinyAce"
+#  "bsicons"
 # ))
 
 library(bslib)
@@ -30,9 +31,10 @@ library(scales)
 library(shinyWidgets)
 library(shinyjs)
 library(shinyAce)
+library(bsicons)
 
 # tratamento ----
-df_nomes <- readRDS("nomes_lista.rds") |>
+df_nomes <- readRDS("nomes_lista") |>
   bind_rows() |>
   as_tibble()
 
@@ -197,22 +199,52 @@ CODIGO_SERVER_LINHAS <-
 
 # ui ----
 ui <- navbarPage(
-  theme = bs_theme(bootswatch = "minty"),
+  fillable = TRUE,
+  theme = bs_theme(bootswatch = "minty",
+                   secondary = "#7fd1ae",),
   title = "Dashboard de Nomes (IBGE)",
   nav_item(input_dark_mode(id = "tema_atual", mode = "light")),
   
-  useShinyjs(), # pra controlar quando o checkbox aparece, preservando o estado do toggle
-  
-  # Aba Principal com Sidebar
+  # Aba Principal com Sidebar Moderna
   tabPanel("Análise Geral",
            page_sidebar(
              sidebar = sidebar(
-               h4("Filtros Principais"),
-               selectInput("nome_selecionado", 
-                           "Escolha um ou mais Nomes:", 
-                           choices = NULL,    
-                           selected = NULL,
-                           multiple = TRUE)
+               width = 300,
+               # Estilização da barra
+               bg = "var(--bs-tertiary-bg)", 
+               title = div(
+                 class = "d-flex align-items-center",
+                 bs_icon("bar-chart-fill", size = "1.5rem", class = "me-2 text-primary"),
+                 h4("Painel", class = "m-0")
+               ),
+               
+               p("Explore a evolução dos nomes no Brasil.", class = "text-muted small mb-4"),
+               
+               accordion(
+                 open = "Seleção de Nomes",
+                 accordion_panel(
+                   "Seleção de Nomes",
+                   icon = bs_icon("people-fill"),
+                   
+                   selectInput("nome_selecionado", 
+                               "Escolha um ou mais Nomes:", 
+                               choices = NULL,    
+                               selected = NULL,
+                               multiple = TRUE),
+                 ),
+                 accordion_panel(
+                   "Configurações",
+                   icon = bs_icon("gear-fill"),
+                   p("Filtros adicionais aparecerão aqui no futuro.", class = "small text-muted")
+                 )
+               ),
+               
+               div(class = "mt-auto pt-4 border-top"),
+               div(
+                 class = "d-flex justify-content-between align-items-center small text-muted",
+                 span("Fonte: IBGE (API)"),
+                 span(bs_icon("database"))
+               )
              ),
              
              tabsetPanel(
@@ -234,9 +266,23 @@ ui <- navbarPage(
                         br(),
                         uiOutput("tabela_dados_conteiner")),
                
-               # 3. ??? ----
-               tabPanel("???",
-                        br()),
+               tabPanel("Mapa de Calor",
+                        br(),
+                        card(
+                          card_header("Configuração do Mapa de Calor"),
+                          radioButtons(
+                            "tipo_heatmap",
+                            label = "O que você quer comparar?",
+                            choices = c(
+                              "Pico do próprio nome (Quando ele foi mais famoso?)" = "pico",
+                              "Proporção Real (Considerando o tamanho da população)" = "proporcao"
+                            ),
+                            selected = "pico",
+                            inline = TRUE
+                          )
+                        ),
+                        br(),
+                        plotOutput("heatmap_iniciais", height = "600px")),
                
                # 4. Histograma ----
                tabPanel("Histograma (Tamanho)",
@@ -266,21 +312,34 @@ ui <- navbarPage(
                # 5. Nuvem de Palavras ----
                tabPanel("Nuvem de Palavras",
                         br(),
+                        # CSS Personalizado para forçar o slider a usar as cores do tema
+                        tags$style(HTML("
+                          .irs--shiny .irs-bar { border-top-color: var(--bs-primary); border-bottom-color: var(--bs-primary); background: var(--bs-primary); }
+                          .irs--shiny .irs-handle { border: 1px solid var(--bs-primary); background-color: var(--bs-primary); }
+                          .irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background-color: var(--bs-primary); }
+                        ")),
+                        
+                        # Layout Centralizado
                         fluidRow(
-                          column(8,
-                                 sliderTextInput(
-                                   inputId = "periodo_nuvem_slider", 
-                                   label = "Período de Referência:", 
-                                   choices = periodos_ordenados,
-                                   selected = periodos_ordenados[1],
-                                   animate = animationOptions(interval = 1000),
-                                   grid = TRUE
+                          column(12, align = "center",
+                                 div(style = "max-width: 800px; margin: 0 auto;",
+                                     sliderTextInput(
+                                       inputId = "periodo_nuvem_slider", 
+                                       label = "Período de Referência:", 
+                                       choices = periodos_ordenados,
+                                       selected = periodos_ordenados[1],
+                                       animate = animationOptions(interval = 1000),
+                                       grid = TRUE,
+                                       width = "100%"
+                                     )
+                                 ),
+                                 br(),
+                                 div(
+                                   checkboxInput("usar_iniciais", "Agrupar por iniciais", value = FALSE)
                                  )
-                          ),
-                          column(4,
-                                 checkboxInput("usar_iniciais", "Agrupar por iniciais", value = FALSE)
                           )
                         ),
+                        hr(),
                         wordcloud2Output("nuvem_nomes", height = "600px")
                ),
                
@@ -289,8 +348,8 @@ ui <- navbarPage(
                adicionar_tags_script("painel", "aba_tabela")
              )
            )
-  )
-)
+  ))
+
 
 # server ----
 server <- function(input, output, session) {
@@ -458,7 +517,45 @@ server <- function(input, output, session) {
       )
   })
   
-  # 3. ??? ----
+  # 3. Heatmap (Com Lógica de Proporção) ----
+  output$heatmap_iniciais <- renderPlot({
+    req(dados_filtrados())
+    
+    df_heatmap <- dados_filtrados()
+    
+    # Lógica condicional baseada no RadioButton
+    if (input$tipo_heatmap == "pico") {
+      # Comparar consigo mesmo (0 a 100% do máximo histórico do nome)
+      df_heatmap <- df_heatmap %>%
+        group_by(Nome) %>%
+        mutate(Valor_Plot = Frequência / max(Frequência)) %>%
+        ungroup()
+      
+      titulo_legenda <- "% do Pico"
+      subtitulo_plot <- "100% = Momento de maior auge daquele nome específico"
+      
+    } else {
+      # Comparar com o total da população (Frequência / Total de Nascimentos na década)
+      df_heatmap <- df_heatmap %>%
+        mutate(Valor_Plot = Frequência / Total_Nascimentos_Periodo)
+      
+      titulo_legenda <- "% da População"
+      subtitulo_plot <- "Porcentagem de crianças nascidas naquele período com este nome (Corrige o aumento populacional)"
+    }
+    
+    ggplot(df_heatmap, aes(x = Período, y = Nome, fill = Valor_Plot)) +
+      geom_tile(color = "white", size = 0.5) +
+      scale_fill_viridis_c(option = "plasma", labels = scales::percent, name = titulo_legenda) +
+      labs(title = "Mapa de Calor de Popularidade",
+           subtitle = subtitulo_plot) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank(),
+        axis.text.y = element_text(size = 12, face = "bold")
+      ) +
+      {if (!is.null(input$tema_atual) && input$tema_atual == "dark") tema_escuro_ggplot}
+  })
   
   # 4. Histograma ----
   output$histograma_comprimento <- renderPlot({
