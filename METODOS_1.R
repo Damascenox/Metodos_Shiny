@@ -11,10 +11,11 @@
 #  "wordcloud2",
 #  "scales",
 #  "shinyWidgets",
-#  "bslib"
-#  "shinyjs"
-#  "shinyAce"
-#  "bsicons"
+#  "bslib",
+#  "shinyjs",
+#  "shinyAce",
+#  "bsicons",
+#  "worrrd"
 # ))
 
 library(bslib)
@@ -32,11 +33,20 @@ library(shinyWidgets)
 library(shinyjs)
 library(shinyAce)
 library(bsicons)
+library(worrrd)
 
 # tratamento ----
-df_nomes <- readRDS("nomes_lista") |>
-  bind_rows() |>
-  as_tibble()
+
+# Solução Temporaria para Leitura 
+if (file.exists("nomes_lista.rds")) {
+  df_nomes <- readRDS("nomes_lista.rds") |>
+    bind_rows() |>
+    as_tibble()
+} else {
+  df_nomes <- readRDS("nomes_lista") |>
+    bind_rows() |>
+    as_tibble()
+}
 
 sujo_nomes <- df_nomes |>
   unnest_auto(res)
@@ -92,6 +102,27 @@ tema_escuro_ggplot <- theme(
   legend.text = element_text(color = "white"),
   legend.title = element_text(color = "white")
 )
+
+
+# 1. Defina o tamanho BASE da fonte aqui 
+tamanho_fonte_base <- 15
+
+# 2. Seu tema personalizado (atualizado com o base_size)
+my_pretty_theme <- theme_minimal(base_family = "Roboto Condensed", base_size = tamanho_fonte_base) +
+  theme(
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = rel(1.4)), 
+    plot.subtitle = element_text(face = "plain", size = rel(1.1), color = "grey40"),
+    plot.caption = element_text(face = "italic", size = rel(0.7), color = "grey70", hjust = 0),
+    legend.title = element_text(face = "bold"),
+    strip.text = element_text(face = "bold", size = rel(1.1), hjust = 0),
+    axis.title = element_text(face = "bold"),
+    # Margens ajustadas para não cortar texto grande
+    axis.title.x = element_text(margin = margin(t = 15)),
+    axis.title.y = element_text(margin = margin(r = 15)),
+    strip.background = element_rect(fill = "grey90", color = NA),
+    panel.border = element_rect(color = "grey90", fill = NA)
+  )
 
 # funções ----
 adicionar_tags_script <- function(painel, aba) {
@@ -237,19 +268,40 @@ CODIGO_PACOTES <-
 # ui ----
 ui <- navbarPage(
   fillable = TRUE,
-  theme = bs_theme(bootswatch = "minty",
-                   secondary = "#7fd1ae",),
+  theme = bs_theme(bootswatch = "minty", secondary = "#7fd1ae",),
   title = "Dashboard de Nomes (IBGE)",
   nav_item(input_dark_mode(id = "tema_atual", mode = "light")),
   
-  useShinyjs(), # pra controlar quando o checkbox etc aparecem, preservando o estado
+  useShinyjs(),
+  
+  tags$style(HTML("
+      /* 1. Força a bolinha e a barra a usarem a cor do tema */
+      .irs--shiny .irs-bar { border-top-color: var(--bs-secondary); border-bottom-color: var(--bs-secondary); background: var(--bs-secondary); }
+      .irs--shiny .irs-handle { border: 1px solid var(--bs-secondary); background-color: var(--bs-secondary); }
+      .irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background-color: var(--bs-secondary); }
+      
+      /* 2. CORREÇÃO DE ALINHAMENTO (O bug da 'pola' acima da linha) */
+      /* O Minty muda a altura da linha, então precisamos empurrar o slider para o lugar */
+      
+      .irs-line { top: 25px !important; }
+      .irs-bar { top: 25px !important; }
+      .irs-bar-edge { top: 25px !important; }
+      .irs-grid-pol { top: -8px !important; }
+      /* Centraliza a bolinha (handle) na linha */
+      .irs-handle { top: 17px !important; } 
+      
+      /* Empurra o texto dos anos para baixo para não bater na linha */
+      .irs-grid-text { bottom: 5px !important; font-size: 0.8rem !important; }
+      
+      /* Aumenta a altura total do container para caber tudo sem cortar */
+      .irs { height: 70px !important; margin-top: 10px; }
+    ")),
   
   # Aba Principal com Sidebar Moderna ----
   tabPanel("Análise Geral",
            page_sidebar(
              sidebar = sidebar(
                width = 300,
-               # Estilização da barra
                bg = "var(--bs-tertiary-bg)", 
                title = div(
                  class = "d-flex align-items-center",
@@ -264,18 +316,22 @@ ui <- navbarPage(
                  accordion_panel(
                    "Seleção de Nomes",
                    icon = bs_icon("people-fill"),
-                   
                    selectInput("nome_selecionado", 
                                "Escolha um ou mais Nomes:", 
                                choices = NULL,    
                                selected = NULL,
-                               multiple = TRUE),
+                               multiple = TRUE)
                  ),
                  
                  accordion_panel(
                    "Configurações",
                    icon = bs_icon("gear-fill"),
-                   p("Filtros adicionais aparecerão aqui no futuro.", class = "small text-muted")
+                   selectInput(
+                     inputId = "tema_plots",          
+                     label = "Escolha um dos Tipos de Tema:",
+                     choices = c("Base", "Elegante"),  
+                     selected = "Elegante"            
+                   )
                  ),
                  
                  accordion_panel(
@@ -308,7 +364,6 @@ ui <- navbarPage(
              tabsetPanel(
                id = "painel",
                
-               # 1. Gráfico ----
                tabPanel("Evolução (Linhas)",
                         value = "aba_linhas",
                         br(),
@@ -318,24 +373,27 @@ ui <- navbarPage(
                         ),
                         uiOutput("grafico_evolucao_conteiner")),
                
-               # 2. Tabela ----
                tabPanel("Tabela Detalhada",
                         value = "aba_tabela",
                         br(),
                         uiOutput("tabela_dados_conteiner")),
                
-               # 3. Heatmap (Com Lógica de Proporção) ----
                tabPanel("Mapa de Calor",
                         br(),
-                        tags$style(HTML("
-                          #tipo_heatmap .radio-inline {
-                            margin-right: 40px;
-                          }
-                        ")),
                         div(
                           id = "card_heatmap",
                           card(
                             card_header("Configuração do Mapa de Calor"),
+                            materialSwitch(
+                              inputId = "ver_todos_heatmap",
+                              label = "Visualizar TODOS os nomes da base (Ignora seleção lateral)", 
+                              status = "primary",
+                              inline = TRUE,
+                              right = TRUE,
+                              value = FALSE
+                            ),
+                            hr(),
+                            
                             radioButtons(
                               "tipo_heatmap",
                               label = "O que você quer comparar?",
@@ -350,7 +408,6 @@ ui <- navbarPage(
                         ),
                         uiOutput("heatmap_iniciais_conteiner", height = "600px")),
                
-               # 4. Histograma ----
                tabPanel("Histograma (Tamanho)",
                         br(),
                         fluidRow(
@@ -358,14 +415,14 @@ ui <- navbarPage(
                           column(6, checkboxInput("dividir_sexo", "Dividir por sexo", value = FALSE))
                         ),
                         plotOutput("histograma_comprimento"),
-                        br(),
-                        hr(),
-                        br(),
                         tags$style(HTML("
                           #numero_letras .radio-inline {
                             margin-right: 20px;
                           }
                         ")),
+                        br(),
+                        hr(),
+                        br(),
                         radioButtons(
                           inputId = "numero_letras",
                           label = "Selecione o número de letras:",
@@ -375,45 +432,67 @@ ui <- navbarPage(
                         ),
                         plotOutput("barras_comprimento")),
                
-               # 5. Nuvem de Palavras ----
-               tabPanel("Nuvem de Palavras",
-                        br(),
-                        # CSS Personalizado para forçar o slider a usar as cores do tema
-                        tags$style(HTML("
-                          .irs--shiny .irs-bar { border-top-color: var(--bs-primary); border-bottom-color: var(--bs-primary); background: var(--bs-primary); }
-                          .irs--shiny .irs-handle { border: 1px solid var(--bs-primary); background-color: var(--bs-primary); }
-                          .irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background-color: var(--bs-primary); }
-                        ")),
-                        
-                        # Layout Centralizado
-                        fluidRow(
-                          column(12, align = "center",
-                                 div(style = "max-width: 800px; margin: 0 auto;",
-                                     sliderTextInput(
-                                       inputId = "periodo_nuvem_slider", 
-                                       label = "Período de Referência:", 
-                                       choices = periodos_ordenados,
-                                       selected = periodos_ordenados[1],
-                                       animate = animationOptions(interval = 1000),
-                                       grid = TRUE,
-                                       width = "100%"
-                                     )
-                                 ),
-                                 br(),
-                                 div(
-                                   checkboxInput("usar_iniciais", "Agrupar por iniciais", value = FALSE)
-                                 )
-                          )
-                        ),
-                        hr(),
-                        wordcloud2Output("nuvem_nomes", height = "600px")
-               ),
-               
-               # Códigos ----
                adicionar_tags_script("painel", "aba_linhas"),
                adicionar_tags_script("painel", "aba_tabela")
              )
            )
+  ),
+  
+  # Aba Nuvem de Palavras (SEPARADA, sem sidebar) ----
+  tabPanel("Nuvem de Palavras",
+           br(),
+           tags$style(HTML("
+             .irs--shiny .irs-bar { border-top-color: var(--bs-primary); border-bottom-color: var(--bs-primary); background: var(--bs-primary); }
+             .irs--shiny .irs-handle { border: 1px solid var(--bs-primary); background-color: var(--bs-primary); }
+             .irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background-color: var(--bs-primary); }
+           ")),
+           
+           fluidRow(
+             column(12, align = "center",
+                    div(style = "max-width: 800px; margin: 0 auto;",
+                        sliderTextInput(
+                          inputId = "periodo_nuvem_slider", 
+                          label = "Período de Referência:", 
+                          choices = periodos_ordenados,
+                          selected = periodos_ordenados[1],
+                          animate = animationOptions(interval = 1000),
+                          grid = TRUE,
+                          width = "100%"
+                        )
+                    ),
+                    br(),
+                    div(
+                      checkboxInput("usar_iniciais", "Agrupar por iniciais", value = FALSE)
+                    )
+             )
+           ),
+           hr(),
+           wordcloud2Output("nuvem_nomes", height = "600px")
+  ),
+  
+  tabPanel("Caça Palavras",
+           br(),
+           fluidRow(
+             column(4,
+                    h4("Configurações"),
+                    
+                    # Slider de tamanho
+                    sliderInput("tamanho", "Tamanho do Grid:", 
+                                min = 8, max = 20, value = 12),
+                    
+                    # Botão de gerar
+                    actionButton("gerar", "Gerar Novo Caça-Palavras", 
+                                 class = "btn-primary"),
+                    br(), br(),
+                    
+                    # Checkbox para ver a resposta (controla o solution = TRUE)
+                    checkboxInput("ver_resposta", "Mostrar Resposta/Gabarito", value = FALSE),
+                    
+                    hr(),
+                    h4("Palavras para encontrar:"),
+                    uiOutput("lista_palavras") # Certifique-se de renderizar isso no server se quiser a lista em texto
+             ),
+             column(8, plotOutput("caca_palavras", height = "600px"))),
   ))
 
 # server ----
@@ -429,7 +508,6 @@ server <- function(input, output, session) {
   observe({
     if (length(input$nome_selecionado) == 0) {
       shinyjs::hide("log_checkbox_linhas")
-      shinyjs::hide("card_heatmap")
     } else {
       shinyjs::show("log_checkbox_linhas")
       shinyjs::show("card_heatmap")
@@ -460,9 +538,14 @@ server <- function(input, output, session) {
   output$grafico_evolucao <- renderPlot({
     req(dados_filtrados())
     
-    ggplot(dados_filtrados(), aes(x = Período, y = Frequência, 
-                                  color = Nome, group = Nome)) +
-      geom_line(size = 1.2) +
+    tema_escolhido <- if (input$tema_plots == "Elegante") {
+      my_pretty_theme
+    } else {
+      theme_bw(base_size = tamanho_fonte_base)
+    }
+    
+    p <- ggplot(dados_filtrados(), aes(x = Período, y = Frequência, color = Nome, group = Nome, linetype = Nome )) +
+      geom_line(linewidth = 1.2) +
       geom_point(size = 4) +
       geom_label(aes(label = scales::comma(Frequência, big.mark = ".", decimal.mark = ",")), 
                  vjust = -0.7, 
@@ -474,25 +557,32 @@ server <- function(input, output, session) {
         x = "Período",
         y = "Número de Nascimentos",
         color = "Nome"
-      ) +
-      theme_bw() +
-      theme(
-        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
-        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14)
-      ) +
-      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      ) + 
+      tema_escolhido +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
         expand = expansion(mult = c(0.05, 0.2)),
         trans = if(input$logaritmica_linhas) "log10" else "identity"
-      ) 
+      )
+    
+    # 4. Lógica do tema Escuro (Sobrescreve qualquer escolha anterior se estiver ativo)
+    if (input$tema_atual == "dark") {
+      p <- p + tema_escuro_ggplot + 
+        theme(text = element_text(size = tamanho_fonte_base, color = "white")) 
+    }
+    
+    p
   })
-  
   output$grafico_regressao <- renderPlot({
     req(dados_filtrados())
     
-    ggplot(dados_filtrados(), aes(x = Período, y = Frequência,
-                                  color = Nome, group = Nome)) +
+    tema_escolhido <- if (input$tema_plots == "Elegante") {
+      my_pretty_theme
+    } else {
+      theme_bw(base_size = tamanho_fonte_base)
+    }
+    
+    p <- ggplot(dados_filtrados(), aes(x = Período, y = Frequência, color = Nome, group = Nome, linetype = Nome )) +
       geom_smooth(method = "lm", se = FALSE, linewidth = 1.4) +
       labs(
         title = "Linhas de Regressão por Nome",
@@ -501,17 +591,19 @@ server <- function(input, output, session) {
         y = "Número de Nascimentos",
         color = "Nome"
       ) +
-      theme_bw() +
-      theme(
-        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
-        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14)
-      ) +
-      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      tema_escolhido +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
         expand = expansion(mult = c(0.05, 0.2)),
         trans = if(input$logaritmica_linhas) "log10" else "identity"
       )
+    
+    if (input$tema_atual == "dark") {
+      p <- p + tema_escuro_ggplot + 
+        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+    }
+    
+    p
   })
   
   # 2. Tabela ----
@@ -586,26 +678,36 @@ server <- function(input, output, session) {
   
   # 3. Heatmap (Com Lógica de Proporção) ----
   output$heatmap_iniciais_conteiner <- renderUI({
-    if (length(input$nome_selecionado) == 0) {
+    # A lógica muda: se NÃO tiver seleção E o botão de "ver todos" estiver DESLIGADO, mostra aviso.
+    if (length(input$nome_selecionado) == 0 && !isTRUE(input$ver_todos_heatmap)) {
       tags$div(
         style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
         tags$div(
           tags$p("Selecione um nome na aba lateral", 
                  style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+          tags$p("Ou ative a opção 'Visualizar TODOS' acima", 
+                 style = "color: #999; font-size: 1.2rem;")
         )
       )
     } else {
       tagList(
         br(),
-        plotOutput("heatmap_iniciais", height = "600px")
+        # Aumentei a altura dinamicamente dependendo da quantidade de dados se for "todos"
+        plotOutput("heatmap_iniciais", height = if(isTRUE(input$ver_todos_heatmap)) "1200px" else "800px")
       )
     }
   })
   
   output$heatmap_iniciais <- renderPlot({
-    req(dados_filtrados())
+    # Removemos o req(dados_filtrados()) padrão e fazemos uma lógica manual
+    req(length(input$nome_selecionado) > 0 || isTRUE(input$ver_todos_heatmap))
     
-    df_heatmap <- dados_filtrados()
+    # Lógica para decidir qual base usar
+    df_heatmap <- if (isTRUE(input$ver_todos_heatmap)) {
+      limpo_nomes # Usa a base COMPLETA
+    } else {
+      dados_filtrados() # Usa só a seleção lateral
+    }
     
     # Lógica condicional baseada no RadioButton
     if (input$tipo_heatmap == "pico") {
@@ -620,25 +722,62 @@ server <- function(input, output, session) {
       
     } else {
       # Comparar com o total da população (Frequência / Total de Nascimentos na década)
+      # PLACEHOLDER: Para normalização por população da década, seria necessário:
+      # 1. Obter dados populacionais do IBGE por década
+      # 2. Criar um vetor/tabela com: populacao_decada <- c("1930-1940" = 41236315, ...)
+      # 3. Fazer join com df_heatmap baseado no período
+      # 4. Calcular: Valor_Plot = (Frequência / populacao_decada) * 100000
+      #    (para expressar como "por 100 mil habitantes")
+      # 
+      # Implementação temporária (NOTA: Total_Nascimentos_Periodo precisa ser criado):
+      # Calcular total de nascimentos por período para normalização:
+      total_por_periodo <- limpo_nomes %>%
+        group_by(Período) %>%
+        summarise(Total_Periodo = sum(Frequência), .groups = "drop")
+      
       df_heatmap <- df_heatmap %>%
-        mutate(Valor_Plot = Frequência / Total_Nascimentos_Periodo)
+        left_join(total_por_periodo, by = "Período") %>%
+        mutate(Valor_Plot = (Frequência / Total_Periodo))  # Já é uma fração, scale_fill_viridis_c formatará como %
       
       titulo_legenda <- "% da População"
       subtitulo_plot <- "Porcentagem de crianças nascidas naquele período com este nome (Corrige o aumento populacional)"
     }
     
-    ggplot(df_heatmap, aes(x = Período, y = Nome, fill = Valor_Plot)) +
-      geom_tile(color = "white", size = 0.5) +
+    # Escolha do tema base
+    tema_escolhido <- if (input$tema_plots == "Elegante") {
+      my_pretty_theme
+    } else {
+      theme_minimal(base_size = tamanho_fonte_base)
+    }
+    
+    p <- ggplot(df_heatmap, aes(x = Período, y = Nome, fill = Valor_Plot)) +
+      geom_tile(color = "white", linewidth = 1.2) +  # Aumentado o espaçamento entre tiles
       scale_fill_viridis_c(option = "plasma", labels = scales::percent, name = titulo_legenda) +
-      labs(title = "Mapa de Calor de Popularidade",
-           subtitle = subtitulo_plot) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid = element_blank(),
-        axis.text.y = element_text(size = 12, face = "bold")
+      labs(
+        title = "Mapa de Calor de Popularidade",
+        subtitle = subtitulo_plot,
+        x = "Período",
+        y = "Nome"
       ) +
-      {if (!is.null(input$tema_atual) && input$tema_atual == "dark") tema_escuro_ggplot}
+      tema_escolhido +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = rel(1)),  # Melhor legibilidade
+        axis.text.y = element_text(size = rel(1.1), face = "bold"),  # Nomes mais legíveis
+        panel.grid = element_blank(),
+        axis.title.x = element_text(margin = margin(t = 15)),  # Mais espaçamento
+        axis.title.y = element_text(margin = margin(r = 15)),  # Mais espaçamento
+        legend.position = "right",
+        legend.key.height = unit(1.5, "cm"),  # Legenda mais alta para melhor visualização
+        plot.margin = margin(10, 10, 10, 10)  # Margem ao redor do plot
+      )
+    
+    # Aplicar tema escuro se ativo
+    if (!is.null(input$tema_atual) && input$tema_atual == "dark") {
+      p <- p + tema_escuro_ggplot + 
+        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+    }
+    
+    p
   })
   
   # 4. Histograma ----
@@ -647,37 +786,39 @@ server <- function(input, output, session) {
     df_periodo <- limpo_nomes %>% 
       filter(Período == input$periodo_hist)
     
+    tema_escolhido <- if (input$tema_plots == "Elegante") {
+      my_pretty_theme
+    } else {
+      theme_bw(base_size = tamanho_fonte_base)
+    }
+    
     p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência))
     if (input$dividir_sexo) {
       p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência, fill = Sexo)) +
-        geom_histogram(binwidth = 1, position = "dodge",
-                       color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
-                       alpha = 0.8)
+        geom_histogram(binwidth = 1, position = "dodge", color = "white", alpha = 0.8)
     } else {
-      p <- p + geom_histogram(binwidth = 1, fill = "skyblue",
-                              color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
-                              alpha = 0.8)
+      p <- p + geom_histogram(binwidth = 1, fill = "skyblue", color = "white", alpha = 0.8)
     }
-    p + 
+    p <- p + 
       labs(
         title = "Distribuição do Tamanho dos Nomes",
         subtitle = paste("Período:", input$periodo_hist),
         x = "Número de Letras",
         y = "Total de Nascimentos"
       ) +
-      theme_bw() +
-      theme(
-        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
-        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14),
-        plot.title = element_text(size = 16),
-        plot.subtitle = element_text(size = 12)
-      ) +
-      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      tema_escolhido +
       scale_y_continuous(
         labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
         expand = expansion(mult = c(0, 0.1))
       ) +
       scale_x_continuous(breaks = seq(0, max(df_periodo$Comprimento), by = 1))
+    
+    if (input$tema_atual == "dark") {
+      p <- p + tema_escuro_ggplot + 
+        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+    }
+    
+    p
   })
   
   output$barras_comprimento <- renderPlot({
@@ -685,43 +826,42 @@ server <- function(input, output, session) {
     df_periodo <- limpo_nomes %>% 
       filter(Período == input$periodo_hist, Comprimento == input$numero_letras)
     
+    tema_escolhido <- if (input$tema_plots == "Elegante") {
+      my_pretty_theme
+    } else {
+      theme_bw(base_size = tamanho_fonte_base)
+    }
+    
     p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência))
     if (input$dividir_sexo) {
       df_periodo <- df_periodo %>%
         mutate(Frequência = ifelse(Sexo == "Masculino", -Frequência, Frequência))
       p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência, fill = Sexo)) +
         geom_col(alpha = 0.8) +
-        coord_flip() +
-        # sem isso, se tivesse só um nome masculino, ele seria rosa
-        scale_fill_manual(
-          values = c(
-            "Feminino" = "#f8766d",
-            "Masculino" = "#00bfc4"
-          )
-        )
+        coord_flip()
     } else {
       p <- p + geom_col(fill = "skyblue", alpha = 0.8) +
         coord_flip()
     }
-    p + 
+    p <- p + 
       labs(
         title = "Distribuição dos Nomes por Comprimento",
         subtitle = paste("Período:", input$periodo_hist, "| Letras:", input$numero_letras),
         x = "Nome",
         y = "Total de Nascimentos"
       ) +
-      theme_bw() +
-      theme(
-        axis.title.x = element_text(margin = ggplot2::margin(t = 10), size = 14),
-        axis.title.y = element_text(margin = ggplot2::margin(r = 10), size = 14),
-        plot.title = element_text(size = 16),
-        plot.subtitle = element_text(size = 12)
-      ) +
-      {if (input$tema_atual == "dark") tema_escuro_ggplot} +
+      tema_escolhido +
       scale_y_continuous(
         labels = function(x) scales::comma_format(big.mark = ".", decimal.mark = ",")(abs(x)),
         expand = expansion(mult = c(0, 0.1))
       )
+    
+    if (input$tema_atual == "dark") {
+      p <- p + tema_escuro_ggplot + 
+        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+    }
+    
+    p
   })
   
   # 5. Nuvem de Palavras ----
@@ -758,6 +898,66 @@ server <- function(input, output, session) {
     invalidateLater(intervalo, session)
     showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
   })
+  
+  # 7. Caça Palavras ----
+  
+  # Assegure-se de que suas palavras estão limpas e disponíveis
+  minhas_palavras <- unique(limpo_nomes$Nome)
+  
+  ws_data <- reactiveVal(NULL)
+  
+  # 2. Gera o jogo (ao iniciar ou clicar no botão)
+  observe({
+    # Garante que existem palavras para usar
+    req(minhas_palavras) 
+    
+    # Cria o objeto do pacote worrrd
+    ws <- wordsearch(words = minhas_palavras, r = input$tamanho, c = input$tamanho)
+    ws_data(ws)
+  }) %>% bindEvent(input$gerar, ignoreNULL = FALSE)
+  
+  # 3. Renderiza o Gráfico (SEM a lista lateral)
+  output$caca_palavras <- renderPlot({
+    req(ws_data())
+    
+    # Lógica segura para mostrar ou não a resposta
+    mostrar_solucao <- if (isTRUE(input$ver_resposta)) TRUE else FALSE
+    
+    plot(ws_data(), 
+         solution = mostrar_solucao, 
+         clues = FALSE,      # <--- Importante: Remove a lista de dentro do gráfico
+         title = "Encontre os Nomes" 
+    ) +
+      theme(legend.position = "none") # Remove resquícios de legenda
+  })
+  
+  # 4. Renderiza a Lista de Palavras (TEXTO na barra lateral)
+  output$lista_palavras <- renderUI({
+    req(ws_data())
+    
+    # Pega as palavras do jogo atual
+    palavras_no_jogo <- sort(unique(ws_data()$words))
+    
+    # Cria o grupo de botões
+    checkboxGroupButtons(
+      inputId = "palavras_encontradas", # ID para saber quais foram clicados
+      label = "Marque as palavras que você encontrou:",
+      choices = palavras_no_jogo,
+      
+      # Configuração Visual
+      status = "success",       # "success" deixa VERDE quando clicado. Use "primary" para azul.
+      size = "sm",              # Tamanho dos botões (sm = pequeno)
+      direction = "horizontal", # Botões um ao lado do outro
+      individual = TRUE,        # Botões separados visualmente
+      
+      # Ícones (opcional: check quando clicado, nada quando não)
+      checkIcon = list(
+        yes = icon("check"), 
+        no = icon("magnifying-glass") # Ou NULL se não quiser ícone
+      )
+    )
+  })
+  
   
   # a) Código: Gráfico ----
   observeEvent(input$aba_linhas_dblclick, {
@@ -826,6 +1026,8 @@ server <- function(input, output, session) {
     )
   }, ignoreInit = TRUE)
 }
+
+
 
 # shinyApp ----
 shinyApp(ui, server)
