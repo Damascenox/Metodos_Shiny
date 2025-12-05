@@ -34,7 +34,7 @@ library(shinyAce)
 library(bsicons)
 
 # tratamento ----
-df_nomes <- readRDS("nomes_lista.rds") |>
+df_nomes <- readRDS("nomes_lista") |>
   bind_rows() |>
   as_tibble()
 
@@ -327,6 +327,11 @@ ui <- navbarPage(
                # 3. Heatmap (Com Lógica de Proporção) ----
                tabPanel("Mapa de Calor",
                         br(),
+                        tags$style(HTML("
+                          #tipo_heatmap .radio-inline {
+                            margin-right: 40px;
+                          }
+                        ")),
                         div(
                           id = "card_heatmap",
                           card(
@@ -353,14 +358,14 @@ ui <- navbarPage(
                           column(6, checkboxInput("dividir_sexo", "Dividir por sexo", value = FALSE))
                         ),
                         plotOutput("histograma_comprimento"),
+                        br(),
+                        hr(),
+                        br(),
                         tags$style(HTML("
                           #numero_letras .radio-inline {
                             margin-right: 20px;
                           }
                         ")),
-                        br(),
-                        hr(),
-                        br(),
                         radioButtons(
                           inputId = "numero_letras",
                           label = "Selecione o número de letras:",
@@ -645,9 +650,13 @@ server <- function(input, output, session) {
     p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência))
     if (input$dividir_sexo) {
       p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência, fill = Sexo)) +
-        geom_histogram(binwidth = 1, position = "dodge", color = "white", alpha = 0.8)
+        geom_histogram(binwidth = 1, position = "dodge",
+                       color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
+                       alpha = 0.8)
     } else {
-      p <- p + geom_histogram(binwidth = 1, fill = "skyblue", color = "white", alpha = 0.8)
+      p <- p + geom_histogram(binwidth = 1, fill = "skyblue",
+                              color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
+                              alpha = 0.8)
     }
     p + 
       labs(
@@ -682,7 +691,14 @@ server <- function(input, output, session) {
         mutate(Frequência = ifelse(Sexo == "Masculino", -Frequência, Frequência))
       p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência, fill = Sexo)) +
         geom_col(alpha = 0.8) +
-        coord_flip()
+        coord_flip() +
+        # sem isso, se tivesse só um nome masculino, ele seria rosa
+        scale_fill_manual(
+          values = c(
+            "Feminino" = "#f8766d",
+            "Masculino" = "#00bfc4"
+          )
+        )
     } else {
       p <- p + geom_col(fill = "skyblue", alpha = 0.8) +
         coord_flip()
