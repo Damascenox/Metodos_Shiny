@@ -35,6 +35,8 @@ library(shinyAce)
 library(bsicons)
 library(worrrd)
 
+
+
 # tratamento ----
 
 # Solução Temporaria para Leitura 
@@ -83,6 +85,8 @@ limpo_nomes <- sujo_nomes |>
          Inicial,
          Comprimento)
 
+
+
 # valores ----
 periodos_ordenados <- levels(limpo_nomes$Período)
 
@@ -103,7 +107,6 @@ tema_escuro_ggplot <- theme(
   legend.title = element_text(color = "white")
 )
 
-
 # 1. Defina o tamanho BASE da fonte aqui 
 tamanho_fonte_base <- 15
 
@@ -118,26 +121,98 @@ my_pretty_theme <- theme_minimal(base_family = "Roboto Condensed", base_size = t
     strip.text = element_text(face = "bold", size = rel(1.1), hjust = 0),
     axis.title = element_text(face = "bold"),
     # Margens ajustadas para não cortar texto grande
-    axis.title.x = element_text(margin = margin(t = 15)),
-    axis.title.y = element_text(margin = margin(r = 15)),
+    axis.title.x = element_text(margin = ggplot2::margin(t = 15)),
+    axis.title.y = element_text(margin = ggplot2::margin(r = 15)),
     strip.background = element_rect(fill = "grey90", color = NA),
     panel.border = element_rect(color = "grey90", fill = NA)
   )
 
+
+
 # funções ----
-adicionar_tags_script <- function(painel, aba) {
-  input_id <- paste0(aba, "_dblclick")
+ativar_dblclick <- function(id_conteiner, aba, isTabset = T) {
+  id_input <- paste0(aba, "_dblclick")
   
-  tags$script(
-    sprintf(
-      "$('#%s a[data-value=\"%s\"]').on('dblclick', function(e) {
-                     e.preventDefault();
-                     Shiny.setInputValue('%s', new Date().getTime(), {priority: 'event'});
-                   });", 
-      painel, aba, input_id
+  if (isTabset) {
+    tags$script(
+      sprintf("
+      $('#%s a[data-value=\"%s\"]').on('dblclick', function(e) {
+         e.preventDefault();
+         Shiny.setInputValue('%s', Date.now(), {priority:'event'});
+      });
+    ", id_conteiner, aba, id_input
+      )
+    )
+  } else {
+    tags$script(
+      sprintf("
+      $('#%s li a[data-value=\"%s\"]').on('dblclick', function(e) {
+         e.preventDefault();
+         Shiny.setInputValue('%s', Date.now(), {priority:'event'});
+      });
+    ", id_conteiner, aba, id_input
+      )
+    )
+  }
+}
+
+mostrar_modal_codigo <- function(
+    input,
+    titulo,
+    id,
+    codigo = '',
+    codigo_ui = '',
+    codigo_server = '',
+    tema,
+    isUiServer = T
+) {
+  tema_ace <- ifelse(tema == "dark", "monokai", "github")
+  
+  showModal(
+    modalDialog(
+      title = titulo,
+      footer = modalButton("Fechar"),
+      easyClose = TRUE,
+      size = "xl",
+      
+      if (isUiServer) {
+        tabsetPanel(
+          tabPanel(
+            title = "ui",
+            aceEditor(
+              outputId = paste0("display_ui_", id),
+              mode = "r",
+              theme = tema_ace,
+              readOnly = TRUE,
+              value = codigo_ui
+            )
+          ),
+          
+          tabPanel(
+            title = "server",
+            aceEditor(
+              outputId = paste0("display_server_", id),
+              mode = "r",
+              theme = tema_ace,
+              readOnly = TRUE,
+              value = codigo_server
+            )
+          )
+        )
+      } else {
+        aceEditor(
+          outputId = paste0("display_", id),
+          mode = "r",
+          theme = tema_ace,
+          readOnly = TRUE,
+          value = codigo
+        )
+      }
     )
   )
 }
+
+
 
 # CODIGO_UI_LINHAS ----
 CODIGO_UI_LINHAS <-
@@ -149,6 +224,8 @@ CODIGO_UI_LINHAS <-
             checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE)
           ),
           uiOutput("grafico_evolucao_conteiner"))'
+
+
 
 # CODIGO_SERVER_LINHAS ----
 CODIGO_SERVER_LINHAS <-
@@ -229,6 +306,68 @@ CODIGO_SERVER_LINHAS <-
       )
   })'
 
+
+
+# CODIGO_UI_TABELA ----
+CODIGO_UI_TABELA <-
+  ''
+
+
+
+# CODIGO_SERVER_TABELA ----
+CODIGO_SERVER_TABELA <-
+  ''
+
+
+
+# CODIGO_UI_HEATMAP ----
+CODIGO_UI_HEATMAP <-
+  ''
+
+
+
+# CODIGO_SERVER_HEATMAP ----
+CODIGO_SERVER_HEATMAP <-
+  ''
+
+
+
+# CODIGO_UI_HISTOGRAMA ----
+CODIGO_UI_HISTOGRAMA <-
+  ''
+
+
+
+# CODIGO_SERVER_HISTOGRAMA ----
+CODIGO_SERVER_HISTOGRAMA <-
+  ''
+
+
+
+# CODIGO_UI_NUVEM ----
+CODIGO_UI_NUVEM <-
+  ''
+
+
+
+# CODIGO_SERVER_NUVEM ----
+CODIGO_SERVER_NUVEM <-
+  ''
+
+
+
+# CODIGO_UI_CACA_PALAVRAS ----
+CODIGO_UI_CACA_PALAVRAS <-
+  ''
+
+
+
+# CODIGO_SERVER_CACA_PALAVRAS ----
+CODIGO_SERVER_CACA_PALAVRAS <-
+  ''
+
+
+
 # CODIGO_PACOTES ----
 CODIGO_PACOTES <-
   '# install.packages(c(
@@ -265,8 +404,29 @@ CODIGO_PACOTES <-
   library(shinyAce)
   library(bsicons)'
 
+
+
+# CODIGO_TRATAMENTO ----
+CODIGO_TRATAMENTO <-
+  ''
+
+
+
+# CODIGO_VALORES ----
+CODIGO_VALORES <-
+  ''
+
+
+
+# CODIGO_FUNCOES ----
+CODIGO_FUNCOES <-
+  ''
+
+
+
 # ui ----
 ui <- navbarPage(
+  id = "pagina_navbar",
   fillable = TRUE,
   theme = bs_theme(bootswatch = "minty", secondary = "#7fd1ae",),
   title = "Dashboard de Nomes (IBGE)",
@@ -362,7 +522,7 @@ ui <- navbarPage(
              ),
              
              tabsetPanel(
-               id = "painel",
+               id = "painel_tabset",
                
                tabPanel("Evolução (Linhas)",
                         value = "aba_linhas",
@@ -379,9 +539,16 @@ ui <- navbarPage(
                         uiOutput("tabela_dados_conteiner")),
                
                tabPanel("Mapa de Calor",
+                        value = "aba_heatmap",
                         br(),
                         div(
                           id = "card_heatmap",
+                          tags$style(HTML("
+                            #tipo_heatmap .radio-inline {
+                              margin-right: 40px;
+                            }
+                          ")),
+                          
                           card(
                             card_header("Configuração do Mapa de Calor"),
                             materialSwitch(
@@ -395,7 +562,7 @@ ui <- navbarPage(
                             hr(),
                             
                             radioButtons(
-                              "tipo_heatmap",
+                              inputId = "tipo_heatmap",
                               label = "O que você quer comparar?",
                               choices = c(
                                 "Pico do próprio nome (Quando ele foi mais famoso?)" = "pico",
@@ -409,6 +576,7 @@ ui <- navbarPage(
                         uiOutput("heatmap_iniciais_conteiner", height = "600px")),
                
                tabPanel("Histograma (Tamanho)",
+                        value = "aba_histograma",
                         br(),
                         fluidRow(
                           column(6, selectInput("periodo_hist", "Escolha o Período:", choices = periodos_ordenados)),
@@ -431,15 +599,13 @@ ui <- navbarPage(
                           inline = TRUE
                         ),
                         plotOutput("barras_comprimento")),
-               
-               adicionar_tags_script("painel", "aba_linhas"),
-               adicionar_tags_script("painel", "aba_tabela")
              )
            )
   ),
   
   # Aba Nuvem de Palavras (SEPARADA, sem sidebar) ----
   tabPanel("Nuvem de Palavras",
+           value = "aba_nuvem",
            br(),
            tags$style(HTML("
              .irs--shiny .irs-bar { border-top-color: var(--bs-primary); border-bottom-color: var(--bs-primary); background: var(--bs-primary); }
@@ -470,7 +636,9 @@ ui <- navbarPage(
            wordcloud2Output("nuvem_nomes", height = "600px")
   ),
   
-  tabPanel("Caça Palavras",
+  # Aba Caça-Palavras ----
+  tabPanel("Caça-Palavras",
+           value = "aba_caça_palavras",
            br(),
            fluidRow(
              column(4,
@@ -493,7 +661,16 @@ ui <- navbarPage(
                     uiOutput("lista_palavras") # Certifique-se de renderizar isso no server se quiser a lista em texto
              ),
              column(8, plotOutput("caca_palavras", height = "600px"))),
-  ))
+  ),
+  
+  # ativa double click nas abas ----
+  ativar_dblclick("painel_tabset", "aba_linhas"),
+  ativar_dblclick("painel_tabset", "aba_tabela"),
+  ativar_dblclick("painel_tabset", "aba_heatmap"),
+  ativar_dblclick("painel_tabset", "aba_histograma"),
+  ativar_dblclick("pagina_navbar", "aba_nuvem", F),
+  ativar_dblclick("pagina_navbar", "aba_caça_palavras", F)
+  )
 
 # server ----
 server <- function(input, output, session) {
@@ -686,7 +863,7 @@ server <- function(input, output, session) {
           tags$p("Selecione um nome na aba lateral", 
                  style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
           tags$p("Ou ative a opção 'Visualizar TODOS' acima", 
-                 style = "color: #999; font-size: 1.2rem;")
+                 style = "color: #999; font-size: 1.2rem; text-align: center;")
         )
       )
     } else {
@@ -764,11 +941,11 @@ server <- function(input, output, session) {
         axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = rel(1)),  # Melhor legibilidade
         axis.text.y = element_text(size = rel(1.1), face = "bold"),  # Nomes mais legíveis
         panel.grid = element_blank(),
-        axis.title.x = element_text(margin = margin(t = 15)),  # Mais espaçamento
-        axis.title.y = element_text(margin = margin(r = 15)),  # Mais espaçamento
+        axis.title.x = element_text(margin = ggplot2::margin(t = 15)),  # Mais espaçamento
+        axis.title.y = element_text(margin = ggplot2::margin(r = 15)),  # Mais espaçamento
         legend.position = "right",
         legend.key.height = unit(1.5, "cm"),  # Legenda mais alta para melhor visualização
-        plot.margin = margin(10, 10, 10, 10)  # Margem ao redor do plot
+        plot.margin = ggplot2::margin(10, 10, 10, 10)  # Margem ao redor do plot
       )
     
     # Aplicar tema escuro se ativo
@@ -793,12 +970,18 @@ server <- function(input, output, session) {
     }
     
     p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência))
+    
     if (input$dividir_sexo) {
       p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência, fill = Sexo)) +
-        geom_histogram(binwidth = 1, position = "dodge", color = "white", alpha = 0.8)
+        geom_histogram(binwidth = 1, position = "dodge",
+                       color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
+                       alpha = 0.8)
     } else {
-      p <- p + geom_histogram(binwidth = 1, fill = "skyblue", color = "white", alpha = 0.8)
+      p <- p + geom_histogram(binwidth = 1, fill = "skyblue",
+                              color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
+                              alpha = 0.8)
     }
+    
     p <- p + 
       labs(
         title = "Distribuição do Tamanho dos Nomes",
@@ -833,6 +1016,7 @@ server <- function(input, output, session) {
     }
     
     p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência))
+    
     if (input$dividir_sexo) {
       df_periodo <- df_periodo %>%
         mutate(Frequência = ifelse(Sexo == "Masculino", -Frequência, Frequência))
@@ -843,6 +1027,7 @@ server <- function(input, output, session) {
       p <- p + geom_col(fill = "skyblue", alpha = 0.8) +
         coord_flip()
     }
+    
     p <- p + 
       labs(
         title = "Distribuição dos Nomes por Comprimento",
@@ -854,6 +1039,12 @@ server <- function(input, output, session) {
       scale_y_continuous(
         labels = function(x) scales::comma_format(big.mark = ".", decimal.mark = ",")(abs(x)),
         expand = expansion(mult = c(0, 0.1))
+      ) + 
+      scale_fill_manual(
+        values = c(
+          "Feminino" = "#f8766d",
+          "Masculino" = "#00bfc4"
+        )
       )
     
     if (input$tema_atual == "dark") {
@@ -890,16 +1081,9 @@ server <- function(input, output, session) {
     )
   })
   
-  # 6. Notificações Nascimentos ----
-  intervalo <- (1000 * 60 * 60 * 24 * 365 * 10) /
-    sum(limpo_nomes[limpo_nomes$Período == "2000 a 2010", ]$Frequência)
   
-  observe({
-    invalidateLater(intervalo, session)
-    showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
-  })
   
-  # 7. Caça Palavras ----
+  # 6. Caça-Palavras ----
   
   # Assegure-se de que suas palavras estão limpas e disponíveis
   minhas_palavras <- unique(limpo_nomes$Nome)
@@ -923,12 +1107,26 @@ server <- function(input, output, session) {
     # Lógica segura para mostrar ou não a resposta
     mostrar_solucao <- if (isTRUE(input$ver_resposta)) TRUE else FALSE
     
-    plot(ws_data(), 
-         solution = mostrar_solucao, 
-         clues = FALSE,      # <--- Importante: Remove a lista de dentro do gráfico
-         title = "Encontre os Nomes" 
+    p <- plot(ws_data(),
+              solution = mostrar_solucao,
+              clues = FALSE,      # <--- Importante: Remove a lista de dentro do gráfico
+              title = "Encontre os Nomes",
     ) +
-      theme(legend.position = "none") # Remove resquícios de legenda
+      theme(
+        legend.position = "none",
+        axis.text = element_blank()
+        )
+    
+    if (input$tema_atual == "dark") {
+      p <- p +
+        theme(
+          plot.background  = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
+          panel.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
+          plot.title = element_text(color = "white")
+        )
+    }
+    
+    p
   })
   
   # 4. Renderiza a Lista de Palavras (TEXTO na barra lateral)
@@ -958,71 +1156,132 @@ server <- function(input, output, session) {
     )
   })
   
+  # 7. Notificações Nascimentos ----
+  intervalo <- (1000 * 60 * 60 * 24 * 365 * 10) /
+    sum(limpo_nomes[limpo_nomes$Período == "2000 a 2010", ]$Frequência)
+  
+  observe({
+    invalidateLater(intervalo, session)
+    showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
+  })
   
   # a) Código: Gráfico ----
   observeEvent(input$aba_linhas_dblclick, {
-    showModal(
-      modalDialog(
-        title = "Código: Gráfico de Linhas",
-        footer = modalButton("Fechar"),
-        easyClose = TRUE,
-        size = "xl",
-        
-        tabsetPanel(
-          tabPanel(
-            title = "ui",
-            aceEditor(
-              outputId = "display_ui_linhas",
-              mode = "r",
-              theme = ifelse(input$tema_atual == "dark", "monokai", "github"),
-              readOnly = TRUE,
-              value = CODIGO_UI_LINHAS
-            )
-          ),
-          
-          tabPanel(
-            title = "server",
-            aceEditor(
-              outputId = "display_server_linhas",
-              mode = "r",
-              theme = ifelse(input$tema_atual == "dark", "monokai", "github"),
-              readOnly = TRUE,
-              value = CODIGO_SERVER_LINHAS
-            )
-          )
-        )
-      )
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Evolução (Linhas)",
+      id = "linhas",
+      codigo_ui = CODIGO_UI_LINHAS,
+      codigo_server = CODIGO_SERVER_LINHAS,
+      tema = input$tema_atual
     )
   }, ignoreInit = TRUE)
   
   # b) Código: Tabela ----
   observeEvent(input$aba_tabela_dblclick, {
-    showModal(
-      modalDialog(
-        title = "código",
-        footer = modalButton("Fechar"),
-        easyClose = TRUE
-      )
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Tabela Detalhada",
+      id = "tabela",
+      codigo_ui = CODIGO_UI_TABELA,
+      codigo_server = CODIGO_SERVER_TABELA,
+      tema = input$tema_atual
     )
   }, ignoreInit = TRUE)
   
-  # e) Código: Pacotes ----
+  # c) Código: Heatmap (Com Lógica de Proporção) ----
+  observeEvent(input$aba_heatmap_dblclick, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Mapa de Calor",
+      id = "heatmap",
+      codigo_ui = CODIGO_UI_HEATMAP,
+      codigo_server = CODIGO_SERVER_HEATMAP,
+      tema = input$tema_atual
+    )
+  }, ignoreInit = TRUE)
+  
+  # d) Código: Histograma ----
+  observeEvent(input$aba_histograma_dblclick, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Histograma (Tamanho)",
+      id = "histograma",
+      codigo_ui = CODIGO_UI_HISTOGRAMA,
+      codigo_server = CODIGO_SERVER_HISTOGRAMA,
+      tema = input$tema_atual
+    )
+  }, ignoreInit = TRUE)
+  
+  # e) Código: Nuvem de Palavras ----
+  observeEvent(input$aba_nuvem_dblclick, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Nuvem de Palavras",
+      id = "nuvem",
+      codigo_ui = CODIGO_UI_NUVEM,
+      codigo_server = CODIGO_SERVER_NUVEM,
+      tema = input$tema_atual
+    )
+  }, ignoreInit = TRUE)
+  
+  # f) Código: Caça-Palavras ----
+  observeEvent(input$aba_caça_palavras_dblclick, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Caça-Palavras",
+      id = "caca_palavras",
+      codigo_ui = CODIGO_UI_CACA_PALAVRAS,
+      codigo_server = CODIGO_SERVER_CACA_PALAVRAS,
+      tema = input$tema_atual
+    )
+  }, ignoreInit = TRUE)
+  
+  # g) Código: Pacotes ----
   observeEvent(input$codigo_pacotes, {
-    showModal(
-      modalDialog(
-        title = "Código: Pacotes",
-        footer = modalButton("Fechar"),
-        easyClose = TRUE,
-        size = "xl",
-        
-        aceEditor(
-          outputId = "display_pacotes",
-          mode = "r",
-          theme = ifelse(input$tema_atual == "dark", "monokai", "github"),
-          readOnly = TRUE,
-          value = CODIGO_PACOTES
-        )
-      )
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Pacotes",
+      id = "pacotes",
+      codigo = CODIGO_PACOTES,
+      tema = input$tema_atual,
+      isUiServer = F
+    )
+  }, ignoreInit = TRUE)
+  
+  # h) Código: Tratamento ----
+  observeEvent(input$codigo_tratamento, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Tratamento",
+      id = "tratamento",
+      codigo = CODIGO_TRATAMENTO,
+      tema = input$tema_atual,
+      isUiServer = F
+    )
+  }, ignoreInit = TRUE)
+  
+  # i) Código: Valores ----
+  observeEvent(input$codigo_valores, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Valores",
+      id = "valores",
+      codigo = CODIGO_VALORES,
+      tema = input$tema_atual,
+      isUiServer = F
+    )
+  }, ignoreInit = TRUE)
+  
+  # j) Código: Funções ----
+  observeEvent(input$codigo_funcoes, {
+    mostrar_modal_codigo(
+      input = input,
+      titulo = "Código: Funções",
+      id = "funcoes",
+      codigo = CODIGO_FUNCOES,
+      tema = input$tema_atual,
+      isUiServer = F
     )
   }, ignoreInit = TRUE)
 }
