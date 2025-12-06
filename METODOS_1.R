@@ -107,26 +107,6 @@ tema_escuro_ggplot <- theme(
   legend.title = element_text(color = "white")
 )
 
-# 1. Defina o tamanho BASE da fonte aqui 
-tamanho_fonte_base <- 15
-
-# 2. Seu tema personalizado (atualizado com o base_size)
-my_pretty_theme <- theme_minimal(base_family = "Roboto Condensed", base_size = tamanho_fonte_base) +
-  theme(
-    panel.grid.minor = element_blank(),
-    plot.title = element_text(face = "bold", size = rel(1.4)), 
-    plot.subtitle = element_text(face = "plain", size = rel(1.1), color = "grey40"),
-    plot.caption = element_text(face = "italic", size = rel(0.7), color = "grey70", hjust = 0),
-    legend.title = element_text(face = "bold"),
-    strip.text = element_text(face = "bold", size = rel(1.1), hjust = 0),
-    axis.title = element_text(face = "bold"),
-    # Margens ajustadas para não cortar texto grande
-    axis.title.x = element_text(margin = ggplot2::margin(t = 15)),
-    axis.title.y = element_text(margin = ggplot2::margin(r = 15)),
-    strip.background = element_rect(fill = "grey90", color = NA),
-    panel.border = element_rect(color = "grey90", fill = NA)
-  )
-
 
 
 # funções ----
@@ -163,10 +143,9 @@ mostrar_modal_codigo <- function(
     codigo = '',
     codigo_ui = '',
     codigo_server = '',
-    tema,
     isUiServer = T
 ) {
-  tema_ace <- ifelse(tema == "dark", "monokai", "github")
+  tema_ace <- ifelse(input$tema_atual == "dark", "monokai", "github")
   
   showModal(
     modalDialog(
@@ -457,6 +436,22 @@ ui <- navbarPage(
       .irs { height: 70px !important; margin-top: 10px; }
     ")),
   
+  # animações pop up
+  tags$head(
+    tags$style(HTML("
+    .modal.fade .modal-dialog {
+      transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+      transform: translateY(-20px);
+      opacity: 0;
+    }
+
+    .modal.fade.show .modal-dialog {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  "))
+  ),
+  
   # Aba Principal com Sidebar Moderna ----
   tabPanel("Análise Geral",
            page_sidebar(
@@ -486,11 +481,32 @@ ui <- navbarPage(
                  accordion_panel(
                    "Configurações",
                    icon = bs_icon("gear-fill"),
+                   
                    selectInput(
                      inputId = "tema_plots",          
                      label = "Escolha um dos Tipos de Tema:",
                      choices = c("Base", "Elegante"),  
                      selected = "Elegante"            
+                   ),
+                   
+                   hr(),
+                   materialSwitch(
+                     inputId = "mostrar_notificacoes",
+                     label = "Exibir notificações",
+                     value = T,
+                     status = "primary",
+                     inline = TRUE
+                   ),
+                   
+                   hr(),
+                   sliderInput(
+                     inputId = "tamanho_fonte_base",
+                     label = "Tamanho da fonte",
+                     min = 10,
+                     max = 20,
+                     step = 2,
+                     value = 16, # tamanho default
+                     ticks = FALSE
                    )
                  ),
                  
@@ -691,6 +707,30 @@ server <- function(input, output, session) {
     }
   })
   
+  tamanho_fonte_base <- reactive({
+    # 1. Defina o tamanho BASE da fonte no slider
+    tamanho_fonte_base <- input$tamanho_fonte_base
+  })
+  
+  my_pretty_theme <- reactive({
+    # 2. Seu tema personalizado (atualizado com o base_size)
+    my_pretty_theme <- theme_minimal(base_family = "Roboto Condensed", base_size = tamanho_fonte_base()) +
+      theme(
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(face = "bold", size = rel(1.4)), 
+        plot.subtitle = element_text(face = "plain", size = rel(1.1), color = "grey40"),
+        plot.caption = element_text(face = "italic", size = rel(0.7), color = "grey70", hjust = 0),
+        legend.title = element_text(face = "bold"),
+        strip.text = element_text(face = "bold", size = rel(1.1), hjust = 0),
+        axis.title = element_text(face = "bold"),
+        # Margens ajustadas para não cortar texto grande
+        axis.title.x = element_text(margin = ggplot2::margin(t = 15)),
+        axis.title.y = element_text(margin = ggplot2::margin(r = 15)),
+        strip.background = element_rect(fill = "grey90", color = NA),
+        panel.border = element_rect(color = "grey90", fill = NA)
+      )
+  })
+  
   # 1. Gráfico ----
   output$grafico_evolucao_conteiner <- renderUI({
     if (length(input$nome_selecionado) == 0) {
@@ -716,9 +756,9 @@ server <- function(input, output, session) {
     req(dados_filtrados())
     
     tema_escolhido <- if (input$tema_plots == "Elegante") {
-      my_pretty_theme
+      my_pretty_theme()
     } else {
-      theme_bw(base_size = tamanho_fonte_base)
+      theme_bw(base_size = tamanho_fonte_base())
     }
     
     p <- ggplot(dados_filtrados(), aes(x = Período, y = Frequência, color = Nome, group = Nome, linetype = Nome )) +
@@ -745,7 +785,7 @@ server <- function(input, output, session) {
     # 4. Lógica do tema Escuro (Sobrescreve qualquer escolha anterior se estiver ativo)
     if (input$tema_atual == "dark") {
       p <- p + tema_escuro_ggplot + 
-        theme(text = element_text(size = tamanho_fonte_base, color = "white")) 
+        theme(text = element_text(size = tamanho_fonte_base(), color = "white")) 
     }
     
     p
@@ -754,9 +794,9 @@ server <- function(input, output, session) {
     req(dados_filtrados())
     
     tema_escolhido <- if (input$tema_plots == "Elegante") {
-      my_pretty_theme
+      my_pretty_theme()
     } else {
-      theme_bw(base_size = tamanho_fonte_base)
+      theme_bw(base_size = tamanho_fonte_base())
     }
     
     p <- ggplot(dados_filtrados(), aes(x = Período, y = Frequência, color = Nome, group = Nome, linetype = Nome )) +
@@ -777,7 +817,7 @@ server <- function(input, output, session) {
     
     if (input$tema_atual == "dark") {
       p <- p + tema_escuro_ggplot + 
-        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+        theme(text = element_text(size = tamanho_fonte_base(), color = "white"))
     }
     
     p
@@ -922,9 +962,9 @@ server <- function(input, output, session) {
     
     # Escolha do tema base
     tema_escolhido <- if (input$tema_plots == "Elegante") {
-      my_pretty_theme
+      my_pretty_theme()
     } else {
-      theme_minimal(base_size = tamanho_fonte_base)
+      theme_minimal(base_size = tamanho_fonte_base())
     }
     
     p <- ggplot(df_heatmap, aes(x = Período, y = Nome, fill = Valor_Plot)) +
@@ -951,7 +991,7 @@ server <- function(input, output, session) {
     # Aplicar tema escuro se ativo
     if (!is.null(input$tema_atual) && input$tema_atual == "dark") {
       p <- p + tema_escuro_ggplot + 
-        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+        theme(text = element_text(size = tamanho_fonte_base(), color = "white"))
     }
     
     p
@@ -964,9 +1004,9 @@ server <- function(input, output, session) {
       filter(Período == input$periodo_hist)
     
     tema_escolhido <- if (input$tema_plots == "Elegante") {
-      my_pretty_theme
+      my_pretty_theme()
     } else {
-      theme_bw(base_size = tamanho_fonte_base)
+      theme_bw(base_size = tamanho_fonte_base())
     }
     
     p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência))
@@ -998,7 +1038,7 @@ server <- function(input, output, session) {
     
     if (input$tema_atual == "dark") {
       p <- p + tema_escuro_ggplot + 
-        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+        theme(text = element_text(size = tamanho_fonte_base(), color = "white"))
     }
     
     p
@@ -1010,9 +1050,9 @@ server <- function(input, output, session) {
       filter(Período == input$periodo_hist, Comprimento == input$numero_letras)
     
     tema_escolhido <- if (input$tema_plots == "Elegante") {
-      my_pretty_theme
+      my_pretty_theme()
     } else {
-      theme_bw(base_size = tamanho_fonte_base)
+      theme_bw(base_size = tamanho_fonte_base())
     }
     
     p <- ggplot(df_periodo, aes(x = reorder(Nome, Frequência), y = Frequência))
@@ -1049,7 +1089,7 @@ server <- function(input, output, session) {
     
     if (input$tema_atual == "dark") {
       p <- p + tema_escuro_ggplot + 
-        theme(text = element_text(size = tamanho_fonte_base, color = "white"))
+        theme(text = element_text(size = tamanho_fonte_base(), color = "white"))
     }
     
     p
@@ -1162,7 +1202,10 @@ server <- function(input, output, session) {
   
   observe({
     invalidateLater(intervalo, session)
-    showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
+    
+    if (input$mostrar_notificacoes) {
+      showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
+    }
   })
   
   # a) Código: Gráfico ----
@@ -1172,8 +1215,7 @@ server <- function(input, output, session) {
       titulo = "Código: Evolução (Linhas)",
       id = "linhas",
       codigo_ui = CODIGO_UI_LINHAS,
-      codigo_server = CODIGO_SERVER_LINHAS,
-      tema = input$tema_atual
+      codigo_server = CODIGO_SERVER_LINHAS
     )
   }, ignoreInit = TRUE)
   
@@ -1184,8 +1226,7 @@ server <- function(input, output, session) {
       titulo = "Código: Tabela Detalhada",
       id = "tabela",
       codigo_ui = CODIGO_UI_TABELA,
-      codigo_server = CODIGO_SERVER_TABELA,
-      tema = input$tema_atual
+      codigo_server = CODIGO_SERVER_TABELA
     )
   }, ignoreInit = TRUE)
   
@@ -1196,8 +1237,7 @@ server <- function(input, output, session) {
       titulo = "Código: Mapa de Calor",
       id = "heatmap",
       codigo_ui = CODIGO_UI_HEATMAP,
-      codigo_server = CODIGO_SERVER_HEATMAP,
-      tema = input$tema_atual
+      codigo_server = CODIGO_SERVER_HEATMAP
     )
   }, ignoreInit = TRUE)
   
@@ -1208,8 +1248,7 @@ server <- function(input, output, session) {
       titulo = "Código: Histograma (Tamanho)",
       id = "histograma",
       codigo_ui = CODIGO_UI_HISTOGRAMA,
-      codigo_server = CODIGO_SERVER_HISTOGRAMA,
-      tema = input$tema_atual
+      codigo_server = CODIGO_SERVER_HISTOGRAMA
     )
   }, ignoreInit = TRUE)
   
@@ -1220,8 +1259,7 @@ server <- function(input, output, session) {
       titulo = "Código: Nuvem de Palavras",
       id = "nuvem",
       codigo_ui = CODIGO_UI_NUVEM,
-      codigo_server = CODIGO_SERVER_NUVEM,
-      tema = input$tema_atual
+      codigo_server = CODIGO_SERVER_NUVEM
     )
   }, ignoreInit = TRUE)
   
@@ -1232,8 +1270,7 @@ server <- function(input, output, session) {
       titulo = "Código: Caça-Palavras",
       id = "caca_palavras",
       codigo_ui = CODIGO_UI_CACA_PALAVRAS,
-      codigo_server = CODIGO_SERVER_CACA_PALAVRAS,
-      tema = input$tema_atual
+      codigo_server = CODIGO_SERVER_CACA_PALAVRAS
     )
   }, ignoreInit = TRUE)
   
@@ -1244,7 +1281,6 @@ server <- function(input, output, session) {
       titulo = "Código: Pacotes",
       id = "pacotes",
       codigo = CODIGO_PACOTES,
-      tema = input$tema_atual,
       isUiServer = F
     )
   }, ignoreInit = TRUE)
@@ -1256,7 +1292,6 @@ server <- function(input, output, session) {
       titulo = "Código: Tratamento",
       id = "tratamento",
       codigo = CODIGO_TRATAMENTO,
-      tema = input$tema_atual,
       isUiServer = F
     )
   }, ignoreInit = TRUE)
@@ -1268,7 +1303,6 @@ server <- function(input, output, session) {
       titulo = "Código: Valores",
       id = "valores",
       codigo = CODIGO_VALORES,
-      tema = input$tema_atual,
       isUiServer = F
     )
   }, ignoreInit = TRUE)
@@ -1280,7 +1314,6 @@ server <- function(input, output, session) {
       titulo = "Código: Funções",
       id = "funcoes",
       codigo = CODIGO_FUNCOES,
-      tema = input$tema_atual,
       isUiServer = F
     )
   }, ignoreInit = TRUE)
