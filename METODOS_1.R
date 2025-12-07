@@ -1,38 +1,38 @@
 # pacotes ----
 # install.packages(c(
-#  "shiny",
-#  "tidyverse",
-#  "DT",
-#  "genderBR",
-#  "dplyr",
-#  "ggplot2",
-#  "tidyr",
-#  "purrr",
-#  "wordcloud2",
-#  "scales",
-#  "shinyWidgets",
 #  "bslib",
-#  "shinyjs",
-#  "shinyAce",
 #  "bsicons",
+#  "DT",
+#  "dplyr",
+#  "genderBR",
+#  "ggplot2",
+#  "purrr",
+#  "scales",
+#  "shiny",
+#  "shinyAce",
+#  "shinyjs",
+#  "shinyWidgets",
+#  "tidyr",
+#  "tidyverse",
+#  "wordcloud2",
 #  "worrrd"
 # ))
 
 library(bslib)
-library(shiny)
-library(tidyverse)
-library(DT)
-library(genderBR)
-library(dplyr)
-library(ggplot2)
-library(tidyr)
-library(purrr)
-library(wordcloud2)
-library(scales)
-library(shinyWidgets)
-library(shinyjs)
-library(shinyAce)
 library(bsicons)
+library(DT)
+library(dplyr)
+library(genderBR)
+library(ggplot2)
+library(purrr)
+library(scales)
+library(shiny)
+library(shinyAce)
+library(shinyjs)
+library(shinyWidgets)
+library(tidyr)
+library(tidyverse)
+library(wordcloud2)
 library(worrrd)
 
 
@@ -688,6 +688,8 @@ ui <- navbarPage(
   ativar_dblclick("pagina_navbar", "aba_caça_palavras", F)
   )
 
+
+
 # server ----
 server <- function(input, output, session) {
   
@@ -704,6 +706,14 @@ server <- function(input, output, session) {
     } else {
       shinyjs::show("log_checkbox_linhas")
       shinyjs::show("card_heatmap")
+    }
+  })
+  
+  cor_bg_reativa <- reactive({
+    if (input$tema_atual == "dark") {
+      return(cor_bg_escuro)
+    } else {
+      return("white")
     }
   })
   
@@ -823,6 +833,8 @@ server <- function(input, output, session) {
     p
   })
   
+  
+  
   # 2. Tabela ----
   output$tabela_dados_conteiner <- renderUI({
     if (length(input$nome_selecionado) == 0) {
@@ -892,6 +904,8 @@ server <- function(input, output, session) {
         background = styleColorBar(range(df_normalizado$Frequência), 'lightblue')
       )
   })
+  
+  
   
   # 3. Heatmap (Com Lógica de Proporção) ----
   output$heatmap_iniciais_conteiner <- renderUI({
@@ -997,6 +1011,8 @@ server <- function(input, output, session) {
     p
   })
   
+  
+  
   # 4. Histograma ----
   output$histograma_comprimento <- renderPlot({
     req(input$periodo_hist)
@@ -1014,11 +1030,11 @@ server <- function(input, output, session) {
     if (input$dividir_sexo) {
       p <- ggplot(df_periodo, aes(x = Comprimento, weight = Frequência, fill = Sexo)) +
         geom_histogram(binwidth = 1, position = "dodge",
-                       color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
+                       color = cor_bg_reativa(),
                        alpha = 0.8)
     } else {
       p <- p + geom_histogram(binwidth = 1, fill = "skyblue",
-                              color = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white"),
+                              color = cor_bg_reativa(),
                               alpha = 0.8)
     }
     
@@ -1095,6 +1111,8 @@ server <- function(input, output, session) {
     p
   })
   
+  
+  
   # 5. Nuvem de Palavras ----
   output$nuvem_nomes <- renderWordcloud2({
     req(input$periodo_nuvem_slider)
@@ -1117,7 +1135,7 @@ server <- function(input, output, session) {
     wordcloud2(
       df_periodo, size = 1,
       color = ifelse(input$tema_atual == "dark", "random-light", "random-dark"),
-      backgroundColor = ifelse(input$tema_atual == "dark", cor_bg_escuro, "white")
+      backgroundColor = cor_bg_reativa()
     )
   })
   
@@ -1144,30 +1162,40 @@ server <- function(input, output, session) {
   output$caca_palavras <- renderPlot({
     req(ws_data())
     
-    # Lógica segura para mostrar ou não a resposta
-    mostrar_solucao <- if (isTRUE(input$ver_resposta)) TRUE else FALSE
+    df_letras <- tibble::tibble(
+      row = rep(seq_len(nrow(ws_data()$search)), times = ncol(ws_data()$search)),
+      col = rep(seq_len(ncol(ws_data()$search)), each = nrow(ws_data()$search)),
+      value = as.vector(ws_data()$search),
+      word  = as.vector(!is.na(ws_data()$solution))
+    ) %>% filter(!is.na(value))
     
-    p <- plot(ws_data(),
-              solution = mostrar_solucao,
-              clues = FALSE,      # <--- Importante: Remove a lista de dentro do gráfico
-              title = "Encontre os Nomes",
-    ) +
-      theme(
-        legend.position = "none",
-        axis.text = element_blank()
-        )
+    p <- ggplot(df_letras, aes(col, row, label = value)) +
+      geom_text(size = 18) +
+      scale_y_reverse() +
+      coord_fixed() +
+      theme_void()
     
     if (input$tema_atual == "dark") {
       p <- p +
-        theme(
-          plot.background  = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
-          panel.background = element_rect(fill = cor_bg_escuro, color = cor_bg_escuro),
-          plot.title = element_text(color = "white")
-        )
+        geom_text(size = 18, color = "white")
     }
     
-    p
-  })
+    # Lógica segura para mostrar ou não a resposta
+    mostrar_solucao <- if (isTRUE(input$ver_resposta)) TRUE else FALSE
+    
+    if (mostrar_solucao) {
+      positions <- attr(ws_data()$search, "positions")
+      p <- p + geom_line(
+        data = positions,
+        aes(x = j, y = i, group = word),
+        color = "red",
+        size = 2,
+        inherit.aes = FALSE
+      )
+    }
+    
+    print(p)
+  }, bg = cor_bg_reativa)
   
   # 4. Renderiza a Lista de Palavras (TEXTO na barra lateral)
   output$lista_palavras <- renderUI({
@@ -1196,6 +1224,8 @@ server <- function(input, output, session) {
     )
   })
   
+  
+  
   # 7. Notificações Nascimentos ----
   intervalo <- (1000 * 60 * 60 * 24 * 365 * 10) /
     sum(limpo_nomes[limpo_nomes$Período == "2000 a 2010", ]$Frequência)
@@ -1207,6 +1237,8 @@ server <- function(input, output, session) {
       showNotification("Nasceu alguém com um nome da sala!", type = "message", duration = 8)
     }
   })
+  
+  
   
   # a) Código: Gráfico ----
   observeEvent(input$aba_linhas_dblclick, {
