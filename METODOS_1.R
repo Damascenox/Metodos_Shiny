@@ -198,7 +198,7 @@ mostrar_modal_codigo <- function(
 
 # CODIGO_UI_LINHAS ----
 CODIGO_UI_LINHAS <-
-  'tabPanel("Evolução (Linhas)",
+'tabPanel("Evolução (Linhas)",
           value = "aba_linhas",
           br(),
           div(
@@ -211,7 +211,7 @@ CODIGO_UI_LINHAS <-
 
 # CODIGO_SERVER_LINHAS ----
 CODIGO_SERVER_LINHAS <-
-  'output$grafico_evolucao_conteiner <- renderUI({
+'output$grafico_evolucao_conteiner <- renderUI({
   if (length(input$nome_selecionado) == 0) {
     tags$div(
       style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
@@ -307,7 +307,7 @@ output$grafico_regressao <- renderPlot({
 
 # CODIGO_UI_TABELA ----
 CODIGO_UI_TABELA <-
-  'tabPanel("Tabela Detalhada",
+'tabPanel("Tabela Detalhada",
           value = "aba_tabela",
           br(),
           uiOutput("tabela_dados_conteiner"))'
@@ -316,7 +316,7 @@ CODIGO_UI_TABELA <-
 
 # CODIGO_SERVER_TABELA ----
 CODIGO_SERVER_TABELA <-
-  'output$tabela_dados_conteiner <- renderUI({
+'output$tabela_dados_conteiner <- renderUI({
   if (length(input$nome_selecionado) == 0) {
     tags$div(
       style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
@@ -389,7 +389,7 @@ output$tabela_dados <- renderDT({
 
 # CODIGO_UI_HEATMAP ----
 CODIGO_UI_HEATMAP <-
-  'tabPanel("Mapa de Calor",
+'tabPanel("Mapa de Calor",
           value = "aba_heatmap",
           br(),
           div(
@@ -430,7 +430,7 @@ CODIGO_UI_HEATMAP <-
 
 # CODIGO_SERVER_HEATMAP ----
 CODIGO_SERVER_HEATMAP <-
-  'output$heatmap_iniciais_conteiner <- renderUI({
+'output$heatmap_iniciais_conteiner <- renderUI({
   # A lógica muda: se NÃO tiver seleção E o botão de "ver todos" estiver DESLIGADO, mostra aviso.
   if (length(input$nome_selecionado) == 0 && !isTRUE(input$ver_todos_heatmap)) {
     tags$div(
@@ -537,7 +537,7 @@ output$heatmap_iniciais <- renderPlot({
 
 # CODIGO_UI_HISTOGRAMA ----
 CODIGO_UI_HISTOGRAMA <-
-  'tabPanel("Histograma (Tamanho)",
+'tabPanel("Histograma (Tamanho)",
           value = "aba_histograma",
           br(),
           fluidRow(
@@ -566,7 +566,7 @@ CODIGO_UI_HISTOGRAMA <-
 
 # CODIGO_SERVER_HISTOGRAMA ----
 CODIGO_SERVER_HISTOGRAMA <-
-  'output$histograma_comprimento <- renderPlot({
+'output$histograma_comprimento <- renderPlot({
   req(input$periodo_hist)
   df_periodo <- limpo_nomes %>% 
     filter(Período == input$periodo_hist)
@@ -667,7 +667,7 @@ output$barras_comprimento <- renderPlot({
 
 # CODIGO_UI_NUVEM ----
 CODIGO_UI_NUVEM <-
-  'tabPanel("Nuvem de Palavras",
+'tabPanel("Nuvem de Palavras",
          value = "aba_nuvem",
          br(),
          tags$style(HTML("
@@ -703,7 +703,7 @@ CODIGO_UI_NUVEM <-
 
 # CODIGO_SERVER_NUVEM ----
 CODIGO_SERVER_NUVEM <-
-  'output$nuvem_nomes <- renderWordcloud2({
+'output$nuvem_nomes <- renderWordcloud2({
   req(input$periodo_nuvem_slider)
   
   df_periodo <- limpo_nomes %>%
@@ -732,7 +732,7 @@ CODIGO_SERVER_NUVEM <-
 
 # CODIGO_UI_CACA_PALAVRAS ----
 CODIGO_UI_CACA_PALAVRAS <-
-  'tabPanel("Caça-Palavras",
+'tabPanel("Caça-Palavras",
          value = "aba_caça_palavras",
          br(),
          fluidRow(
@@ -762,7 +762,7 @@ CODIGO_UI_CACA_PALAVRAS <-
 
 # CODIGO_SERVER_CACA_PALAVRAS ----
 CODIGO_SERVER_CACA_PALAVRAS <-
-  '# Assegure-se de que suas palavras estão limpas e disponíveis
+'# Assegure-se de que suas palavras estão limpas e disponíveis
 minhas_palavras <- unique(limpo_nomes$Nome)
 
 ws_data <- reactiveVal(NULL)
@@ -852,7 +852,7 @@ output$lista_palavras <- renderUI({
 
 # CODIGO_PACOTES ----
 CODIGO_PACOTES <-
-  '# install.packages(c(
+'# install.packages(c(
 #  "bslib",
 #  "bsicons",
 #  "DT",
@@ -892,7 +892,7 @@ library(worrrd)'
 
 # CODIGO_TRATAMENTO ----
 CODIGO_TRATAMENTO <-
-  '# Solução Temporaria para Leitura 
+'# Solução Temporaria para Leitura 
 if (file.exists("nomes_lista.rds")) {
   df_nomes <- readRDS("nomes_lista.rds") |>
     bind_rows() |>
@@ -942,7 +942,7 @@ limpo_nomes <- sujo_nomes |>
 
 # CODIGO_VALORES ----
 CODIGO_VALORES <-
-  'periodos_ordenados <- levels(limpo_nomes$Período)
+'periodos_ordenados <- levels(limpo_nomes$Período)
 
 cor_bg_escuro <- "#222222"
 
@@ -965,7 +965,7 @@ tema_escuro_ggplot <- theme(
 
 # CODIGO_FUNCOES ----
 CODIGO_FUNCOES <-
-  'ativar_dblclick <- function(id_conteiner, aba, isTabset = T) {
+'ativar_dblclick <- function(id_conteiner, aba, isTabset = T) {
   id_input <- paste0(aba, "_dblclick")
   
   if (isTabset) {
