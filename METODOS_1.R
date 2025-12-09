@@ -107,7 +107,15 @@ tema_escuro_ggplot <- theme(
   legend.title = element_text(color = "white")
 )
 
-
+df_geracoes <- data.frame(
+  x_idx = c(1.0, 3.6, 5.5, 7.1, 8.7),
+  
+  label = c("Geração Silenciosa", 
+            "Baby Boomers", 
+            "Geração X", 
+            "Millennials", 
+            "Geração Z")
+)
 
 # funções ----
 ativar_dblclick <- function(id_conteiner, aba, isTabset = T) {
@@ -198,7 +206,7 @@ mostrar_modal_codigo <- function(
 
 # CODIGO_UI_LINHAS ----
 CODIGO_UI_LINHAS <-
-'tabPanel("Evolução (Linhas)",
+  'tabPanel("Evolução (Linhas)",
           value = "aba_linhas",
           br(),
           div(
@@ -211,64 +219,137 @@ CODIGO_UI_LINHAS <-
 
 # CODIGO_SERVER_LINHAS ----
 CODIGO_SERVER_LINHAS <-
-'output$grafico_evolucao_conteiner <- renderUI({
-  if (length(input$nome_selecionado) == 0) {
-    tags$div(
-      style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+  'output$grafico_evolucao_conteiner <- renderUI({
+    
+    # Se não tiver nome selecionado, mostra o aviso
+    if (length(input$nome_selecionado) == 0) {
       tags$div(
-        tags$p("Selecione um nome na aba lateral", 
-               style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
+        tags$div(
+          tags$p("Selecione um nome na aba lateral", 
+                 style = "color: #cce8e0; font-weight: 600; font-size: 3rem; padding: 20px; text-align: center;"),
+        )
       )
-    )
-  } else {
-    tagList(
-      plotOutput("grafico_evolucao"),
-      br(),
-      hr(),
-      br(),
-      plotOutput("grafico_regressao")
-    )
-  }
-})
-
-output$grafico_evolucao <- renderPlot({
-  req(dados_filtrados())
+    } else {
+      # calculo dos cards
+      df <- dados_filtrados()
+      
+      # 1. Total Absoluto
+      total_geral <- sum(df$Frequência, na.rm = TRUE)
+      
+      # 2. Onde foi o Pico?
+      linha_pico <- df %>% arrange(desc(Frequência)) %>% slice(1)
+      periodo_pico <- linha_pico$Período
+      valor_pico   <- linha_pico$Frequência
+      
+      # 3. Qual o nome com mais registros (caso tenha selecionado vários)
+      top_nome <- df %>% 
+        group_by(Nome) %>% 
+        summarise(Total = sum(Frequência)) %>% 
+        arrange(desc(Total)) %>% 
+        slice(1)
+      
+      # cards
+      tagList(
+        # --- CARDS DO TOPO ---
+        layout_columns(
+          fill = FALSE, # Importante para não esticar demais
+          
+          # Card 1: Total
+          value_box(
+            title = "Total de Nascimentos",
+            value = scales::comma(total_geral, big.mark = ".", decimal.mark = ","),
+            showcase = bs_icon("people-fill"),
+            theme = "primary" 
+          ),
+          
+          # Card 2: Pico
+          value_box(
+            title = "Pico de Popularidade",
+            value = periodo_pico,
+            p(paste(scales::comma(valor_pico, big.mark = "."), "registros")), # subtitulo
+            showcase = bs_icon("graph-up-arrow"),
+            theme = "secondary" 
+          ),
+          
+          # Card 3: Nome Principal
+          value_box(
+            title = "Nome mais Comum",
+            value = top_nome$Nome,
+            p(paste("Total:", scales::comma(top_nome$Total, big.mark = "."))),
+            showcase = bs_icon("trophy-fill"),
+            theme = if(input$tema_atual == "dark") "dark" else "info"
+          )
+        ),
+        
+        br(),
+        
+        # --- GRÁFICOS ---
+        card(
+          plotOutput("grafico_evolucao")
+        ),
+        br(),
+        card(
+          plotOutput("grafico_regressao")
+        )
+      )
+    }
+  })
   
-  tema_escolhido <- if (input$tema_plots == "Elegante") {
-    my_pretty_theme()
-  } else {
-    theme_bw(base_size = tamanho_fonte_base())
-  }
-  
-  p <- ggplot(dados_filtrados(), aes(x = Período, y = Frequência, color = Nome, group = Nome, linetype = Nome )) +
-    geom_line(linewidth = 1.2) +
-    geom_point(size = 4) +
-    geom_label(aes(label = scales::comma(Frequência, big.mark = ".", decimal.mark = ",")), 
-               vjust = -0.7, 
-               show.legend = FALSE,
-               size = 3) +
-    labs(
-      title = "Evolução do Número de Nascimentos",
-      subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),
-      x = "Período",
-      y = "Número de Nascimentos",
-      color = "Nome"
-    ) + 
-    tema_escolhido +
-    scale_y_continuous(
-      labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
-      expand = expansion(mult = c(0.05, 0.2)),
-      trans = if(input$logaritmica_linhas) "log10" else "identity"
-    )
-  
-  # 4. Lógica do tema Escuro (Sobrescreve qualquer escolha anterior se estiver ativo)
-  if (input$tema_atual == "dark") {
-    p <- p + tema_escuro_ggplot + 
-      theme(text = element_text(size = tamanho_fonte_base(), color = "white")) 
-  }
-  
-  p
-})
+  output$grafico_evolucao <- renderPlot({
+    req(dados_filtrados())
+    
+    tema_escolhido <- if (input$tema_plots == "Elegante") {
+      my_pretty_theme()
+    } else {
+      theme_bw(base_size = tamanho_fonte_base())
+    }
+    
+    p <- ggplot(dados_filtrados(), aes(x = Período, y = Frequência, color = Nome, group = Nome, linetype = Nome )) +
+      geom_line(linewidth = 1.2) +
+      geom_point(size = 4) +
+      geom_label(aes(label = scales::comma(Frequência, big.mark = ".", decimal.mark = ",")), 
+                 vjust = -0.7, 
+                 show.legend = FALSE,
+                 size = 3) +
+      labs(
+        title = "Evolução do Número de Nascimentos",
+        subtitle = paste("Nomes:", paste(input$nome_selecionado, collapse = ", ")),
+        x = "Período",
+        y = "Número de Nascimentos",
+        color = "Nome"
+      ) + 
+      tema_escolhido +
+      scale_y_continuous(
+        labels = scales::comma_format(big.mark = ".", decimal.mark = ","),
+        expand = expansion(mult = c(0.05, 0.2)),
+        trans = if(input$logaritmica_linhas) "log10" else "identity"
+      )
+    
+    # 4. Lógica do tema Escuro (Sobrescreve qualquer escolha anterior se estiver ativo)
+    if (input$tema_atual == "dark") {
+      p <- p + tema_escuro_ggplot + 
+        theme(text = element_text(size = tamanho_fonte_base(), color = "white")) 
+    }
+    
+    if (isTRUE(input$boomer)) {
+      p <- p +
+        geom_vline(data = df_geracoes, aes(xintercept = x_idx), 
+                   inherit.aes = FALSE, # ignorar as configurações globais porque tem dois conjuntos de dados diferentes
+                   linetype = "dashed", color = "orange", alpha = 0.8, linewidth = 0.8) +
+        
+        geom_text(data = df_geracoes, aes(x = x_idx, y = Inf, label = label),
+                  inherit.aes = FALSE,
+                  angle = 90, 
+                  vjust = -0.5, 
+                  hjust = 1.1, 
+                  size = 4, 
+                  color = ifelse(input$tema_atual == "dark", "orange", "gray30"),
+                  fontface = "bold")
+    }
+    
+    p
+  })
 
 output$grafico_regressao <- renderPlot({
   req(dados_filtrados())
@@ -307,7 +388,7 @@ output$grafico_regressao <- renderPlot({
 
 # CODIGO_UI_TABELA ----
 CODIGO_UI_TABELA <-
-'tabPanel("Tabela Detalhada",
+  'tabPanel("Tabela Detalhada",
           value = "aba_tabela",
           br(),
           uiOutput("tabela_dados_conteiner"))'
@@ -316,7 +397,7 @@ CODIGO_UI_TABELA <-
 
 # CODIGO_SERVER_TABELA ----
 CODIGO_SERVER_TABELA <-
-'output$tabela_dados_conteiner <- renderUI({
+  'output$tabela_dados_conteiner <- renderUI({
   if (length(input$nome_selecionado) == 0) {
     tags$div(
       style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
@@ -389,7 +470,7 @@ output$tabela_dados <- renderDT({
 
 # CODIGO_UI_HEATMAP ----
 CODIGO_UI_HEATMAP <-
-'tabPanel("Mapa de Calor",
+  'tabPanel("Mapa de Calor",
           value = "aba_heatmap",
           br(),
           div(
@@ -430,7 +511,7 @@ CODIGO_UI_HEATMAP <-
 
 # CODIGO_SERVER_HEATMAP ----
 CODIGO_SERVER_HEATMAP <-
-'output$heatmap_iniciais_conteiner <- renderUI({
+  'output$heatmap_iniciais_conteiner <- renderUI({
   # A lógica muda: se NÃO tiver seleção E o botão de "ver todos" estiver DESLIGADO, mostra aviso.
   if (length(input$nome_selecionado) == 0 && !isTRUE(input$ver_todos_heatmap)) {
     tags$div(
@@ -537,7 +618,7 @@ output$heatmap_iniciais <- renderPlot({
 
 # CODIGO_UI_HISTOGRAMA ----
 CODIGO_UI_HISTOGRAMA <-
-'tabPanel("Histograma (Tamanho)",
+  'tabPanel("Histograma (Tamanho)",
           value = "aba_histograma",
           br(),
           fluidRow(
@@ -566,7 +647,7 @@ CODIGO_UI_HISTOGRAMA <-
 
 # CODIGO_SERVER_HISTOGRAMA ----
 CODIGO_SERVER_HISTOGRAMA <-
-'output$histograma_comprimento <- renderPlot({
+  'output$histograma_comprimento <- renderPlot({
   req(input$periodo_hist)
   df_periodo <- limpo_nomes %>% 
     filter(Período == input$periodo_hist)
@@ -667,7 +748,7 @@ output$barras_comprimento <- renderPlot({
 
 # CODIGO_UI_NUVEM ----
 CODIGO_UI_NUVEM <-
-'tabPanel("Nuvem de Palavras",
+  'tabPanel("Nuvem de Palavras",
          value = "aba_nuvem",
          br(),
          tags$style(HTML("
@@ -703,7 +784,7 @@ CODIGO_UI_NUVEM <-
 
 # CODIGO_SERVER_NUVEM ----
 CODIGO_SERVER_NUVEM <-
-'output$nuvem_nomes <- renderWordcloud2({
+  'output$nuvem_nomes <- renderWordcloud2({
   req(input$periodo_nuvem_slider)
   
   df_periodo <- limpo_nomes %>%
@@ -732,7 +813,7 @@ CODIGO_SERVER_NUVEM <-
 
 # CODIGO_UI_CACA_PALAVRAS ----
 CODIGO_UI_CACA_PALAVRAS <-
-'tabPanel("Caça-Palavras",
+  'tabPanel("Caça-Palavras",
          value = "aba_caça_palavras",
          br(),
          fluidRow(
@@ -762,7 +843,7 @@ CODIGO_UI_CACA_PALAVRAS <-
 
 # CODIGO_SERVER_CACA_PALAVRAS ----
 CODIGO_SERVER_CACA_PALAVRAS <-
-'# Assegure-se de que suas palavras estão limpas e disponíveis
+  '# Assegure-se de que suas palavras estão limpas e disponíveis
 minhas_palavras <- unique(limpo_nomes$Nome)
 
 ws_data <- reactiveVal(NULL)
@@ -852,7 +933,7 @@ output$lista_palavras <- renderUI({
 
 # CODIGO_PACOTES ----
 CODIGO_PACOTES <-
-'# install.packages(c(
+  '# install.packages(c(
 #  "bslib",
 #  "bsicons",
 #  "DT",
@@ -892,7 +973,7 @@ library(worrrd)'
 
 # CODIGO_TRATAMENTO ----
 CODIGO_TRATAMENTO <-
-'# Solução Temporaria para Leitura 
+  '# Solução Temporaria para Leitura 
 if (file.exists("nomes_lista.rds")) {
   df_nomes <- readRDS("nomes_lista.rds") |>
     bind_rows() |>
@@ -942,7 +1023,7 @@ limpo_nomes <- sujo_nomes |>
 
 # CODIGO_VALORES ----
 CODIGO_VALORES <-
-'periodos_ordenados <- levels(limpo_nomes$Período)
+  'periodos_ordenados <- levels(limpo_nomes$Período)
 
 cor_bg_escuro <- "#222222"
 
@@ -959,13 +1040,23 @@ tema_escuro_ggplot <- theme(
   legend.background = element_rect(fill = cor_bg_escuro),
   legend.text = element_text(color = "white"),
   legend.title = element_text(color = "white")
+)
+
+df_geracoes <- data.frame(
+  x_idx = c(1.0, 3.6, 5.5, 7.1, 8.7),
+  
+  label = c("Geração Silenciosa", 
+            "Baby Boomers", 
+            "Geração X", 
+            "Millennials", 
+            "Geração Z")
 )'
 
 
 
 # CODIGO_FUNCOES ----
 CODIGO_FUNCOES <-
-'ativar_dblclick <- function(id_conteiner, aba, isTabset = T) {
+  'ativar_dblclick <- function(id_conteiner, aba, isTabset = T) {
   id_input <- paste0(aba, "_dblclick")
   
   if (isTabset) {
@@ -1187,9 +1278,12 @@ ui <- navbarPage(
                         value = "aba_linhas",
                         br(),
                         div(
-                          id = "log_checkbox_linhas",
-                          checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE)
-                        ),
+                          card(
+                            card_header("Configuração dos Plots"),
+                            id = "log_checkbox_linhas",
+                            checkboxInput("logaritmica_linhas", "Utilizar escala logarítmica", value = FALSE),
+                            checkboxInput("boomer", "Exibir Gerações", value = FALSE)
+                          )),
                         uiOutput("grafico_evolucao_conteiner")),
                
                tabPanel("Tabela Detalhada",
@@ -1328,7 +1422,7 @@ ui <- navbarPage(
   ativar_dblclick("painel_tabset", "aba_histograma"),
   ativar_dblclick("pagina_navbar", "aba_nuvem", F),
   ativar_dblclick("pagina_navbar", "aba_caça_palavras", F)
-  )
+)
 
 
 
@@ -1382,8 +1476,10 @@ server <- function(input, output, session) {
       )
   })
   
-  # 1. Gráfico ----
+  # 1. Gráfico e Cards ----
   output$grafico_evolucao_conteiner <- renderUI({
+    
+    # Se não tiver nome selecionado, mostra o aviso
     if (length(input$nome_selecionado) == 0) {
       tags$div(
         style = "height: 60vh; display: flex; align-items: center; justify-content: center; flex-direction: column;",
@@ -1393,12 +1489,67 @@ server <- function(input, output, session) {
         )
       )
     } else {
+      # calculo dos cards
+      df <- dados_filtrados()
+      
+      # 1. Total Absoluto
+      total_geral <- sum(df$Frequência, na.rm = TRUE)
+      
+      # 2. Onde foi o Pico?
+      linha_pico <- df %>% arrange(desc(Frequência)) %>% slice(1)
+      periodo_pico <- linha_pico$Período
+      valor_pico   <- linha_pico$Frequência
+      
+      # 3. Qual o nome com mais registros (caso tenha selecionado vários)
+      top_nome <- df %>% 
+        group_by(Nome) %>% 
+        summarise(Total = sum(Frequência)) %>% 
+        arrange(desc(Total)) %>% 
+        slice(1)
+      
+      # cards
       tagList(
-        plotOutput("grafico_evolucao"),
+        # --- CARDS DO TOPO ---
+        layout_columns(
+          fill = FALSE, # Importante para não esticar demais
+          
+          # Card 1: Total
+          value_box(
+            title = "Total de Nascimentos",
+            value = scales::comma(total_geral, big.mark = ".", decimal.mark = ","),
+            showcase = bs_icon("people-fill"),
+            theme = "primary" 
+          ),
+          
+          # Card 2: Pico
+          value_box(
+            title = "Pico de Popularidade",
+            value = periodo_pico,
+            p(paste(scales::comma(valor_pico, big.mark = "."), "registros")), # subtitulo
+            showcase = bs_icon("graph-up-arrow"),
+            theme = "secondary" 
+          ),
+          
+          # Card 3: Nome Principal
+          value_box(
+            title = "Nome mais Comum",
+            value = top_nome$Nome,
+            p(paste("Total:", scales::comma(top_nome$Total, big.mark = "."))),
+            showcase = bs_icon("trophy-fill"),
+            theme = if(input$tema_atual == "dark") "dark" else "info"
+          )
+        ),
+        
         br(),
-        hr(),
+        
+        # --- GRÁFICOS ---
+        card(
+          plotOutput("grafico_evolucao")
+        ),
         br(),
-        plotOutput("grafico_regressao")
+        card(
+          plotOutput("grafico_regressao")
+        )
       )
     }
   })
@@ -1439,8 +1590,26 @@ server <- function(input, output, session) {
         theme(text = element_text(size = tamanho_fonte_base(), color = "white")) 
     }
     
+    if (isTRUE(input$boomer)) {
+      p <- p +
+        geom_vline(data = df_geracoes, aes(xintercept = x_idx), 
+                   inherit.aes = FALSE, 
+                   linetype = "dashed", color = "orange", alpha = 0.8, linewidth = 0.8) +
+        
+        geom_text(data = df_geracoes, aes(x = x_idx, y = Inf, label = label),
+                  inherit.aes = FALSE,
+                  angle = 90, 
+                  vjust = -0.5, 
+                  hjust = 1.1, 
+                  size = 4, 
+                  color = ifelse(input$tema_atual == "dark", "orange", "gray30"),
+                  fontface = "bold")
+    }
+    
     p
   })
+  
+  
   
   output$grafico_regressao <- renderPlot({
     req(dados_filtrados())
@@ -1648,6 +1817,20 @@ server <- function(input, output, session) {
     if (!is.null(input$tema_atual) && input$tema_atual == "dark") {
       p <- p + tema_escuro_ggplot + 
         theme(text = element_text(size = tamanho_fonte_base(), color = "white"))
+    }
+    
+    if (input$boomer) {
+      p <- p +
+        geom_vline(data = df_geracoes, aes(xintercept = x_idx), 
+                   inherit.aes = FALSE, 
+                   linetype = "dashed", color = "gray50", alpha = 0.5) +
+        geom_text(data = df_geracoes, aes(x = x_idx, y = Inf, label = label),
+                  inherit.aes = FALSE,
+                  angle = 90,       # Texto na vertical
+                  vjust = -0.5,     # Afasta um pouco da linha para a direita
+                  hjust = 1.05,     # Mantém o texto dentro do gráfico (topo)
+                  size = 4, 
+                  color = "gray40")
     }
     
     p
